@@ -881,8 +881,22 @@ async function pullSync(){
   if(!token || !gistId) return null;
   const gist = await ghRequest("https://api.github.com/gists/"+gistId, {method:"GET"}, token);
   const file = gist.files && gist.files[SYNC_FILE];
-  if(!file || !file.content) return null;
-  return JSON.parse(file.content);
+  if(!file) return null;
+  let content = file.content;
+  // The gist API only inlines a file's content up to ~1MB — a deck with
+  // a few thousand subjects comfortably clears that, and the response
+  // comes back with truncated:true and content cut off mid-string
+  // (hence "unterminated string" from JSON.parse). raw_url always has
+  // the full, untruncated file, and — secret gists being unlisted
+  // rather than access-controlled — it's fetchable with no auth needed.
+  if(file.truncated && file.raw_url){
+    const r = await fetch(file.raw_url);
+    if(!r.ok) throw new Error("Fetched the gist but couldn't read the full file (raw fetch "+r.status+").");
+    content = await r.text();
+  }
+  if(!content) return null;
+  try{ return JSON.parse(content); }
+  catch(e){ throw new Error("Sync data on GitHub looks incomplete or corrupted ("+e.message+")."); }
 }
 /* Pulls, keeps whichever side is newer, and pushes if local should win.
    Returns a short human-readable summary for the status line. */
