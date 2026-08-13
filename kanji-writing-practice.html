@@ -857,17 +857,20 @@ async function ghRequest(url, opts, token){
   return r.json();
 }
 /* Cards without their subject dictionary is exactly the corruption a
-   background-sync race once produced: SUBJ carries every kanji's
-   character, meanings, and readings, so cards with no matching subject
-   render as "unknown," and logic that reads SUBJ (vocab type, the
-   vocab-locked-until-its-kanji-are-Guru gate) misbehaves — which is
-   also why the lesson count was inflated: locked vocab no longer read
-   as locked without SUBJ to check. This is a cheap sanity check run
-   before either trusting a pulled snapshot or pushing a local one. */
+   background-sync race once produced, and — in a milder, partial form
+   — what a gap in the WaniKani-sync completeness check separately let
+   through: SUBJ carries every kanji's character, meanings, and
+   readings, so cards with no matching subject render as "unknown," and
+   logic that reads SUBJ (vocab type, the vocab-locked-until-its-kanji-
+   are-Guru gate) misbehaves. Checking "SUBJ isn't empty" only caught
+   the first, total case; this checks every card actually has its
+   match, tolerating a small fraction missing since a few gaps can be
+   legitimate mid-sync. */
 function syncPayloadLooksSane(data, subjects){
-  const hasCards = data && data.cards && Object.keys(data.cards).length > 0;
-  const hasSubjects = subjects && Object.keys(subjects).length > 0;
-  return !hasCards || hasSubjects;
+  const cardIds = (data && data.cards) ? Object.keys(data.cards) : [];
+  if(!cardIds.length) return true;
+  const missing = cardIds.filter(id=>!subjects || !subjects[id]).length;
+  return (missing / cardIds.length) < 0.05;
 }
 async function pushSync(){
   const {token, gistId} = syncConfig();
@@ -1876,10 +1879,16 @@ async function sync(){
     }
     if(!wantIds.length) throw new Error("No started kanji found — do some WaniKani lessons first.");
 
-    // Subject details, fetched per type and cached.
+    // Subject details, fetched per type and cached. The completeness
+    // check has to cover every card already in the deck, not just
+    // wantIds (WK's *currently*-started list) — a card pulled in from
+    // another device (or one that fell out of "started" some other
+    // way) can sit in S.cards without a subject entry, and checking
+    // only wantIds would never notice the gap, skip the fetch, and
+    // leave that item showing as "(unknown)" forever.
+    const needSubjectsFor = Array.from(new Set([...wantIds, ...Object.keys(S.cards)]));
     for(const t of (wantVocab ? ["kanji","vocabulary"] : ["kanji"])){
-      const need = wantIds.some(id=>!SUBJ[id] && (t==="kanji" ? true : true));
-      const haveAllOfType = wantIds.every(id=>SUBJ[id]);
+      const haveAllOfType = needSubjectsFor.every(id=>SUBJ[id]);
       if(haveAllOfType) continue;
       setStatus(st, who+wantIds.length+" started items.\nDownloading "+t+" details…");
       const subs = await wkAll(WK+"subjects?types="+t, token,
