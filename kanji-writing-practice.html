@@ -799,9 +799,18 @@ const DB = {
   async set(k,v){
     const s = JSON.stringify(v);
     if(hasWS){
-      try{ await window.storage.set(k, s, false); return true; }catch(e){ return false; }
+      try{ await window.storage.set(k, s, false); return true; }
+      catch(e){ DB.lastError = e && e.message; return false; }
     }
-    try{ localStorage.setItem(k, s); return true; }catch(e){ return false; }
+    // localStorage on mobile Safari is typically capped around 5-10MB —
+    // SUBJ alone (meanings/readings/mnemonics for the whole WK kanji +
+    // vocab curriculum) can get close to that on its own once combined
+    // with cards/log under the same origin quota. A quota failure here
+    // used to disappear silently (catch → false, nothing ever checked
+    // the return value), which looks exactly like "sync said it worked
+    // but some items are still unknown after reloading."
+    try{ localStorage.setItem(k, s); return true; }
+    catch(e){ DB.lastError = e && e.message; return false; }
   },
   async del(k){
     if(hasWS){ try{ await window.storage.delete(k, false); }catch(e){} return; }
@@ -1887,7 +1896,15 @@ async function sync(){
     // only wantIds would never notice the gap, skip the fetch, and
     // leave that item showing as "(unknown)" forever.
     const needSubjectsFor = Array.from(new Set([...wantIds, ...Object.keys(S.cards)]));
-    for(const t of (wantVocab ? ["kanji","vocabulary"] : ["kanji"])){
+    // wantVocab (the "include vocabulary" toggle) is about whether *new*
+    // vocab lessons should be introduced — it shouldn't stop existing
+    // vocab cards already in the deck (e.g. pulled from another device)
+    // from getting their subject filled in. So the type list always
+    // includes vocabulary if there's a gap left after the kanji pass,
+    // regardless of that toggle; wantVocab only decides whether we try
+    // it unconditionally up front.
+    const typesToFetch = wantVocab ? ["kanji","vocabulary"] : ["kanji"];
+    for(const t of typesToFetch){
       const haveAllOfType = needSubjectsFor.every(id=>SUBJ[id]);
       if(haveAllOfType) continue;
       setStatus(st, who+wantIds.length+" started items.\nDownloading "+t+" details…");
@@ -1899,10 +1916,29 @@ async function sync(){
       }
       await DB.set(K_SUBJ, SUBJ);
     }
+    if(!wantVocab && !needSubjectsFor.every(id=>SUBJ[id])){
+      setStatus(st, who+"Downloading vocabulary details to fill in words already in the deck…");
+      const subs = await wkAll(WK+"subjects?types=vocabulary", token,
+        (n,total)=> setStatus(st, who+"Downloading vocabulary details… "+n+(total?" / "+total:"")));
+      for(const sub of subs){
+        if(!HAS_KANJI.test(sub.data.characters||"")) continue;
+        SUBJ[sub.id] = packSubject(sub.data, "vocabulary");
+      }
+      await DB.set(K_SUBJ, SUBJ);
+    }
 
     const ids = wantIds.filter(id=>SUBJ[id]);          // drops kana-only vocab
     for(const id of ids) SUBJ[id].wkStage = stageById[id];
-    await DB.set(K_SUBJ, SUBJ);
+    // This save used to be unchecked, same as the two above — if it
+    // silently failed (storage quota, most likely, given how much data
+    // SUBJ holds), the status message would still say "Synced" while
+    // some items quietly never made it to disk, showing as "(unknown)"
+    // again on the next reload even though this session looked fine.
+    if(!(await DB.set(K_SUBJ, SUBJ))){
+      throw new Error("Downloaded everything, but the browser refused to save it locally"
+        + (DB.lastError ? " (" + DB.lastError + ")" : "")
+        + " — this is almost always storage running out of room. Try Setup → Erase all progress on this device first (back it up via Export if you need to), then sync again.");
+    }
 
     let addedK=0, addedV=0;
     for(const id of ids){
@@ -2164,10 +2200,13 @@ $("#file-import").onchange = async e=>{
     if(!j.data||!j.subjects) throw new Error("bad file");
     S = {...S, ...j.data}; S.settings={...DEFAULT_SETTINGS,...S.settings};
     SUBJ = j.subjects;
-    await DB.set(K_SUBJ, SUBJ); await saveNow();
+    const subjOk = await DB.set(K_SUBJ, SUBJ);
+    await saveNow();
+    if(!subjOk) throw new Error("Read the backup, but the browser refused to save it locally"
+      + (DB.lastError ? " (" + DB.lastError + ")" : "") + " — likely storage running out of room.");
     fillSettings(); applySettings(); renderDataSummary(); renderCounts();
     setStatus($("#data-status"),"Backup restored. "+Object.keys(S.cards).length+" kanji loaded.");
-  }catch(err){ setStatus($("#data-status"),"That file couldn't be read as a backup.",true); }
+  }catch(err){ setStatus($("#data-status"), err.message==="bad file" ? "That file couldn't be read as a backup." : (err.message||"That file couldn't be read as a backup."),true); }
   e.target.value="";
 };
 armConfirm($("#btn-reset"), "Click again to erase everything", async ()=>{
@@ -2283,7 +2322,19 @@ async function doPull(){
     S = {...S, ...remote.data};
     S.settings = {...DEFAULT_SETTINGS, ...S.settings};
     SUBJ = (remote.subjects && Object.keys(remote.subjects).length) ? remote.subjects : SUBJ;
-    await DB.set(K_SUBJ, SUBJ); await saveNow();
+    // Same silent-failure risk as the WK sync save — SUBJ is the biggest
+    // thing this app stores, so it's the first thing to hit a storage
+    // quota. Surface it instead of reporting "Pulled" over a save that
+    // didn't actually land.
+    const subjOk = await DB.set(K_SUBJ, SUBJ);
+    await saveNow();
+    if(!subjOk){
+      setStatus($("#gh-sync-status"), "Pulled the data, but the browser refused to save it locally"
+        + (DB.lastError ? " (" + DB.lastError + ")" : "")
+        + " — likely storage running out of room. Try Setup → Erase all progress here first (Export a backup if needed), then Pull again.", true);
+      btnPull.disabled = false;
+      return;
+    }
     fillSettings(); applySettings(); renderDataSummary(); renderCounts();
     if(!$("#v-review").hidden) showCard();
     if(!$("#v-items").hidden) renderItems();
