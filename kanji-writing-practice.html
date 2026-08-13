@@ -225,6 +225,10 @@ main{max-width:820px;margin:0 auto;padding:clamp(20px,5vw,52px) clamp(16px,4vw,3
   transition:border-color .2s ease;
 }
 .masu.active{border-color:var(--grid)}
+/* Cursor/tap affordance only when the setting's actually on — html.tap-
+   replay is set in applySettings(), read live off S.settings.tapReplay. */
+html.tap-replay .masu{cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+html.tap-replay .masu:active{opacity:.85}
 .masu::before,.masu::after{content:"";position:absolute;pointer-events:none}
 .masu::before{left:50%;top:6%;bottom:6%;width:1px;background-image:linear-gradient(var(--grid-hair) 50%,transparent 0);background-size:1px 10px;transform:translateX(-.5px)}
 .masu::after{top:50%;left:6%;right:6%;height:1px;background-image:linear-gradient(90deg,var(--grid-hair) 50%,transparent 0);background-size:10px 1px;transform:translateY(-.5px)}
@@ -766,6 +770,8 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 
   <h2>Stroke order</h2>
   <label class="toggle"><input type="checkbox" id="in-stroke"> Redraw stroke by stroke after the reveal</label>
+  <label class="toggle"><input type="checkbox" id="in-tapreplay"> Tap the character to replay strokes</label>
+  <p class="muted">Each replay on the same card gets slower — full speed, then half, then a quarter, then it stays there — so you can watch closely without hunting for the speed slider. The next card starts back at full speed. Applies to the replay button and <kbd class="kbd-only">R</kbd> too, not just tapping.</p>
   <div class="inline">
     <label class="field">
       <span class="lbl">Hold before redrawing</span>
@@ -1231,7 +1237,7 @@ const DEFAULT_SETTINGS = {
   token:"", newPerDay:15, maxReviews:120, order:"level", burn:true,
   vocab:true, vocabStart:5, vocabNewPerDay:5, vocabMaxReviews:40, interleave:true,
   reviewOrder:"random",
-  batchSize:5, strokeAnim:true, strokeDelay:0.5, strokeSpeed:3,
+  batchSize:5, strokeAnim:true, strokeDelay:0.5, strokeSpeed:3, tapReplay:true,
   showAlts:true, showReadings:true, dark:false
 };
 let S = { settings:{...DEFAULT_SETTINGS}, cards:{}, log:[], meta:{} };
@@ -1513,6 +1519,7 @@ function paintPrompt(){
   $("#m-mnemonic").hidden=true;
   $("#btn-undo").hidden = undoStack.length===0;
   revealed=false; pending=null; resetStrokes(); prefetchStrokes();
+  replayCount = 0;
 }
 function showCard(){
   renderCounts();
@@ -1636,6 +1643,13 @@ $("#btn-batch").onclick = ()=>{
   showCard();
 };
 $("#btn-replay").onclick = replayStrokes;
+// Tapping the drawn character replays it too, when the setting's on —
+// same replayStrokes() path as the button and R, so it shares the same
+// per-card slowdown tiers. Delegated on the row so it keeps working
+// across every rebuild of the boxes inside it (multi-character words).
+$("#masu-row").addEventListener("click", ()=>{
+  if(S.settings.tapReplay && revealed && currentStrokes) replayStrokes();
+});
 $("#btn-mnemonic").onclick = ()=>{
   const el=$("#m-mnemonic"), s=SUBJ[current.id]||{};
   if(el.hidden){ el.innerHTML = s.mnemonic||""; el.hidden=false; } else el.hidden=true;
@@ -1664,6 +1678,18 @@ const SVGNS = "http://www.w3.org/2000/svg";
 const STROKE_SHARDS = 8;        // split the cache so no single key gets huge
 let strokeCache = {};          // char -> [d,…] or null when unavailable
 let animToken = 0, strokeTimer = null, strokeSaveTimer = null, currentStrokes = null;
+/* Counts replays (button, R key, or tapping the character) on the
+   *current* card only — reset to 0 whenever a new card is painted. The
+   auto-play on reveal doesn't touch this; it's not a replay. */
+let replayCount = 0;
+/* Tier 1 is full speed, tier 2 half that, tier 3 (and everything after)
+   a quarter — each replay past the first gets slower until it settles,
+   rather than slowing indefinitely. */
+function replaySpeedMult(n){
+  if(n <= 1) return 1;
+  if(n === 2) return 0.5;
+  return 0.25;
+}
 let bulkMode = false;
 const sleep = ms => new Promise(r=>setTimeout(r, ms));
 const raf = () => new Promise(r=>requestAnimationFrame(()=>r()));
@@ -1872,7 +1898,8 @@ function replayStrokes(){
   if(!currentStrokes) return;
   clearTimeout(strokeTimer);
   const tok = ++animToken;
-  playStrokes(currentStrokes, tok);
+  replayCount++;
+  playStrokes(currentStrokes, tok, replaySpeedMult(replayCount));
 }
 /* One stroke, hand-driven per frame. */
 function drawOne(item, dur, tok){
@@ -1889,11 +1916,14 @@ function drawOne(item, dur, tok){
     step();
   });
 }
-/* Redraw every box in reading order, one stroke at a time. */
-async function playStrokes(cs, tok){
+/* Redraw every box in reading order, one stroke at a time. speedMult
+   (see replaySpeedMult) scales the user's base speed down for repeated
+   replays on the same card — 1 for the initial auto-play and the first
+   replay, then progressively slower. */
+async function playStrokes(cs, tok, speedMult){
   if(!window.requestAnimationFrame) return;
   const {all, boxes} = cs;
-  const speed = S.settings.strokeSpeed || 1;
+  const speed = (S.settings.strokeSpeed || 1) * (speedMult || 1);
   const prepared = boxes.map((b,i)=>{
     if(!all[i]) return null;
     const live = fillBox(b, all[i]);
@@ -2164,6 +2194,10 @@ $("#btn-demo2").onclick = ()=> loadDemo(false);
    ═══════════════════════════════════════════════════════════════ */
 function applySettings(){
   document.documentElement.dataset.theme = S.settings.dark ? "dark" : "light";
+  // Only for the CSS cursor hint on the stroke boxes — the tap handler
+  // itself always checks the live setting, this just signals visually
+  // that tapping does something right now.
+  document.documentElement.classList.toggle("tap-replay", !!S.settings.tapReplay);
 }
 function fillSettings(){
   $("#in-token").value = S.settings.token||"";
@@ -2178,6 +2212,7 @@ function fillSettings(){
   $("#in-vnew").value = S.settings.vocabNewPerDay;
   $("#in-vmax").value = S.settings.vocabMaxReviews;
   $("#in-stroke").checked = S.settings.strokeAnim;
+  $("#in-tapreplay").checked = S.settings.tapReplay;
   $("#in-strokedelay").value = S.settings.strokeDelay;
   $("#in-strokespeed").value = S.settings.strokeSpeed;
   $("#speedval").textContent = fmtSpeed(S.settings.strokeSpeed);
@@ -2210,6 +2245,7 @@ bind("#in-vocabstart","vocabStart", v=>clamp(parseInt(v)||1, 1, APPRENTICE_TOP))
 bind("#in-vnew","vocabNewPerDay", v=>clamp(parseInt(v)||0, 0, 200));
 bind("#in-vmax","vocabMaxReviews", v=>clamp(parseInt(v)||0, 0, 999));
 bind("#in-stroke","strokeAnim");
+bind("#in-tapreplay","tapReplay");
 bind("#in-strokedelay","strokeDelay", v=>clamp(parseFloat(v)||0, 0, 15));
 bind("#in-strokespeed","strokeSpeed", v=>clamp(parseFloat(v)||1, 0.25, 10));
 $("#in-strokespeed").addEventListener("input", ()=>{
