@@ -1,0 +1,2699 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>手書練 — Handwriting Practice</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+:root{
+  /* Every themable color lives here as a base hex plus, where it's also
+     needed at partial opacity, a "-rgb" twin (r,g,b with no alpha) that
+     rgba(var(--x-rgb), a) can read from. To ship a new theme, only the
+     hex/rgb pairs in this block (and its [data-theme="dark"] twin below)
+     need to change — everything else in the stylesheet just references
+     these variables. */
+  --paper:#F5F3EE;
+  --paper-raised:#FBFAF7;
+  --ink:#1B1F1D;
+  --ink-rgb:27,31,29;
+  --ink-soft:#383D3A;
+  --ink-faint:#666C68;
+  /* Text sitting on top of solid accent-colored tiles (SRS "enlightened"/
+     "burned" chips) needs to stay legible regardless of light/dark mode,
+     so it's fixed here rather than flipping with --ink. */
+  --ink-on-accent:#1B1F1D;
+  --grid:#0C6670;
+  --grid-rgb:12,102,112;
+  /* Structural borders/dividers (grid-line, grid-hair) are a translucent
+     wash again, not fully solid — at full opacity they were the exact
+     same intensity teal as the stage-color tiles they sit next to on
+     Items/Stats, so the two competed instead of one framing the other.
+     grid-line is for borders/boxes that should read clearly; grid-hair
+     is for quieter dividers. Plain text colors (--grid, --shu, --shu-text,
+     --ink*) stay fully opaque — legibility, not vibrancy, is the goal
+     there. */
+  --grid-line:rgba(var(--grid-rgb),.45);
+  --grid-hair:rgba(var(--grid-rgb),.22);
+  --shu:#FFAA33;
+  --shu-rgb:255,170,51;
+  /* --shu itself is now bright enough that it fails as text on the paper
+     background — good for fills (heatmap, tile tints, bars) but not for
+     reading. --shu-text is the readable gold for anywhere --shu is used
+     as a color rather than a background/border. */
+  --shu-text:#856800;
+  --shu-soft:rgba(var(--shu-rgb),.20);
+  /* Moss green — currently only used for the heatmap's top bucket and the
+     apprentice tile tint. */
+  --moss:#54622C;
+  --moss-rgb:84,98,44;
+  /* Lesson/Guru/Enlightened are teal blended with --paper at three
+     opacities baked into solid hex (so they're opaque, not alpha
+     tricks), spread further apart than a straight .30/.60/.80 split so
+     the three read as distinct steps rather than close variations on
+     the border color. (Originally this ladder ended at Master — see
+     --rust below for why Master and Enlightened swapped.) */
+  --s-lesson:#D0DCDA;
+  --s-trainee:var(--shu);
+  --s-apprentice:var(--moss);
+  --s-guru:#6EA1A5;
+  /* Guru's mid-brightness teal doesn't pair cleanly with one text color
+     across both themes the way the others do, so — unlike the rest of
+     this file — its tile text is set directly per theme instead of via
+     a value that self-flips. */
+  --s-guru-text:var(--ink-on-accent);
+  /* Rust is named on its own, separate from --s-enlightened, because the
+     heatmap's lowest bucket also uses it — decoupling the two means the
+     Items page can reassign which SRS stage wears rust without dragging
+     the heatmap's color along with it. */
+  --rust:#B84E17;
+  --s-master:var(--rust);
+  --s-enlightened:#156C75;
+  --s-burned:var(--ink);
+  /* Heatmap ramp: each level is a distinct hue (reusing the theme's own
+     accents) rather than one hue at rising opacity, so activity reads as
+     color, not just intensity: rust → gold → green → teal (the
+     closest thing this palette has to blue) as the day gets busier. */
+  --heat-0:var(--grid-hair);
+  --heat-1:var(--rust);
+  --heat-2:var(--shu);
+  --heat-3:var(--moss);
+  --heat-max:var(--grid);
+  --shadow-rgb:27,31,29;
+  --shadow:0 1px 0 rgba(var(--shadow-rgb),.06);
+  --serif: ui-serif, Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --jp-mincho: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "MS Mincho", "Noto Serif JP", "Songti SC", serif;
+  --jp-gothic: "Hiragino Kaku Gothic ProN", "Yu Gothic", YuGothic, "Noto Sans JP", "Meiryo", sans-serif;
+}
+[data-theme="dark"]{
+  --paper:#12171A;
+  --paper-raised:#1A2124;
+  --ink:#EDEFEC;
+  --ink-rgb:237,239,236;
+  --ink-soft:#C7CDC9;
+  --ink-faint:#8E9591;
+  --grid:#3FB6BE;
+  --grid-rgb:63,182,190;
+  --grid-line:rgba(var(--grid-rgb),.42);
+  --grid-hair:rgba(var(--grid-rgb),.20);
+  --shu:#F2C158;
+  --shu-rgb:242,193,88;
+  /* Bright golds read fine as text against a dark background, so no
+     separate text variant is needed here — kept for symmetry with light. */
+  --shu-text:var(--shu);
+  --shu-soft:rgba(var(--shu-rgb),.24);
+  --moss:#9AAE5F;
+  --moss-rgb:154,174,95;
+  --s-lesson:#192F33;
+  --s-trainee:var(--shu);
+  --s-apprentice:var(--moss);
+  --s-guru:#2B6E74;
+  --s-guru-text:var(--paper);
+  --rust:#F0864A;
+  --s-master:var(--rust);
+  --s-enlightened:#3CACB4;
+  --s-burned:var(--ink);
+  --heat-0:var(--grid-hair);
+  --heat-1:var(--rust);
+  --heat-2:var(--shu);
+  --heat-3:var(--moss);
+  --heat-max:var(--grid);
+  --shadow-rgb:0,0,0;
+  --shadow:0 1px 0 rgba(var(--shadow-rgb),.4);
+}
+*{box-sizing:border-box}
+/* An author rule like .stage{display:flex} outranks the UA sheet's
+   [hidden]{display:none}, so the attribute silently stops working.
+   This makes hidden mean hidden, everywhere. */
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--grid);outline-offset:2px;border-radius:2px}
+
+/* ── top rail ─────────────────────────────────── */
+.rail{
+  display:flex;align-items:center;gap:18px;
+  padding:14px clamp(16px,4vw,32px);
+  border-bottom:1px solid var(--grid-hair);
+  position:sticky;top:0;background:var(--paper);z-index:20;
+  flex-wrap:wrap;
+}
+.mark{display:flex;align-items:baseline;gap:9px;margin-right:auto}
+.mark .glyph{font-family:var(--jp-mincho);font-size:19px;color:var(--grid);line-height:1;letter-spacing:.04em}
+.mark .name{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+.counts{display:flex;gap:14px;font-family:var(--mono);font-size:12px;letter-spacing:.02em}
+.counts b{font-weight:500}
+.counts .c-new{color:var(--grid)}
+.counts .c-lrn{color:var(--shu-text)}
+.counts .c-rev{color:var(--ink-soft)}
+.counts .c-batch{color:var(--ink);box-shadow:inset 0 -1px 0 var(--grid)}
+.counts .c-next{font-style:normal;color:var(--ink-faint);margin-left:5px}
+.batchrow{gap:14px}
+.batchlabel{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:12px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+.batchlabel input{
+  width:72px;padding:9px 8px;text-align:center;
+  background:var(--paper-raised);border:1px solid var(--grid-line);border-radius:2px;
+  font-family:var(--mono);font-size:14px;letter-spacing:0;
+}
+.batchlabel input:focus{outline:none;border-color:var(--grid)}
+.counts span[hidden]{display:none}
+.navlinks{display:flex;gap:2px}
+.navlinks button{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+  padding:5px 9px;border-radius:2px;
+}
+.navlinks button:hover{color:var(--ink)}
+.navlinks button[aria-current="true"]{color:var(--ink);box-shadow:inset 0 -1px 0 var(--grid)}
+
+/* ── layout ───────────────────────────────────── */
+main{max-width:820px;margin:0 auto;padding:clamp(20px,5vw,52px) clamp(16px,4vw,32px) 96px}
+.view[hidden]{display:none}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);margin:0 0 6px;
+}
+
+/* ── review card ──────────────────────────────── */
+.stage{display:flex;flex-direction:column;align-items:center;text-align:center}
+.subjmeta{
+  font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);display:flex;gap:10px;align-items:center;
+}
+.subjmeta .dot{color:var(--grid-line)}
+.keyword{
+  font-family:var(--serif);
+  font-size:clamp(34px,7.5vw,54px);
+  line-height:1.1;font-weight:500;letter-spacing:-.015em;
+  margin:12px 0 4px;max-width:14ch;
+}
+/* Vocabulary prompts with kana in this slot instead of the English gloss. */
+.keyword.is-kana{font-family:var(--jp-gothic);letter-spacing:.02em}
+.alts{font-family:var(--sans);font-size:13px;color:var(--ink-faint);min-height:19px}
+/* Subtitle slot — the English gloss under a vocabulary word's kana.
+   Pushed down and muted so it doesn't sit in the same eyeline as the
+   prompt you're meant to be recalling the kanji from. */
+.promptreading{
+  font-family:var(--sans);font-size:14px;
+  color:var(--ink-faint);letter-spacing:.02em;margin:30px 0 4px;
+}
+.prompt-note{font-size:12px;color:var(--ink-faint);margin-top:10px;font-style:italic}
+
+/* ── the practice square (signature) ──────────── */
+.masu-row{
+  display:flex;gap:10px;justify-content:center;flex-wrap:nowrap;
+  margin:clamp(20px,4.5vw,32px) 0 10px;
+}
+.masu{
+  --size:300px;
+  width:var(--size);height:var(--size);flex:0 0 auto;
+  position:relative;
+  border:1px solid var(--grid-line);
+  background:var(--paper-raised);
+  display:grid;place-items:center;
+  transition:border-color .2s ease;
+}
+.masu.active{border-color:var(--grid)}
+.masu::before,.masu::after{content:"";position:absolute;pointer-events:none}
+.masu::before{left:50%;top:6%;bottom:6%;width:1px;background-image:linear-gradient(var(--grid-hair) 50%,transparent 0);background-size:1px 10px;transform:translateX(-.5px)}
+.masu::after{top:50%;left:6%;right:6%;height:1px;background-image:linear-gradient(90deg,var(--grid-hair) 50%,transparent 0);background-size:10px 1px;transform:translateY(-.5px)}
+.masu .corner{position:absolute;width:9px;height:9px;border:1px solid var(--grid-line)}
+.masu .corner.tl{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.masu .corner.tr{top:-1px;right:-1px;border-left:0;border-bottom:0}
+.masu .corner.bl{bottom:-1px;left:-1px;border-right:0;border-top:0}
+.masu .corner.br{bottom:-1px;right:-1px;border-left:0;border-top:0}
+.masu .char{
+  font-family:var(--jp-mincho);
+  font-size:calc(var(--size) * .68);
+  line-height:1;color:var(--ink);opacity:0;
+  transition:opacity .18s ease;user-select:text;
+}
+.masu.showfont .char{opacity:1}
+.masu .strokes{
+  position:absolute;left:7%;top:7%;width:86%;height:86%;
+  opacity:0;transition:opacity .18s ease;pointer-events:none;overflow:visible;
+}
+.masu.drawing .strokes{opacity:1}
+.strokes g{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.strokes .ghost path{stroke:var(--grid-hair);stroke-width:4.5}
+.strokes .live path{stroke:var(--ink);stroke-width:5.5}
+.masu-caption{
+  font-family:var(--mono);font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--grid);opacity:.8;min-height:14px;
+  margin-bottom:clamp(12px,3vw,18px);
+}
+.stroke-note{font-size:12px;color:var(--shu-text);max-width:44ch;margin:4px auto 10px;line-height:1.5}
+input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;border:0}
+
+/* ── reveal details ───────────────────────────── */
+.readings{display:flex;flex-wrap:wrap;gap:6px 22px;justify-content:center;margin-bottom:6px;min-height:24px}
+.reading{display:flex;align-items:baseline;gap:7px}
+.reading .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.reading .val{font-family:var(--jp-gothic);font-size:17px}
+.reading.primary .val{color:var(--ink)}
+.reading:not(.primary) .val{color:var(--ink-soft)}
+.extlinks{display:flex;gap:16px;justify-content:center;margin:2px 0 4px}
+.extlinks a{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);text-decoration:none;border-bottom:1px solid var(--grid-hair);padding-bottom:1px}
+.extlinks a:hover{color:var(--grid);border-color:var(--grid)}
+.mnemonic{
+  max-width:52ch;font-size:14px;line-height:1.62;color:var(--ink-soft);
+  text-align:left;margin:16px 0 0;padding:14px 16px;
+  background:var(--paper-raised);border-left:2px solid var(--grid-line);
+}
+.mnemonic b{font-weight:600;color:var(--ink)}
+.mnemonic .r{color:var(--shu-text);font-weight:600}
+.mnemonic .k{color:var(--grid);font-weight:600}
+
+/* ── buttons ──────────────────────────────────── */
+.btn{
+  border:1px solid var(--grid-line);background:var(--paper-raised);
+  padding:13px 30px;border-radius:2px;
+  font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+  transition:background .15s ease,border-color .15s ease;
+}
+.btn:hover{border-color:var(--grid);background:var(--paper)}
+.btn.wide{width:min(100%,300px)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.primary:hover{opacity:.88;background:var(--ink)}
+.btn.quiet{border-color:transparent;background:none;color:var(--ink-faint)}
+.btn.quiet:hover{color:var(--ink);border-color:var(--grid-hair)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+
+.grades{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(100%,440px)}
+.grade{
+  border:1px solid var(--grid-line);background:var(--paper-raised);
+  padding:12px 4px 10px;border-radius:2px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  transition:border-color .13s ease,background .13s ease,transform .13s ease;
+}
+.grade:hover{border-color:var(--grid);transform:translateY(-1px)}
+.grade .g-name{font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.grade .g-ivl{font-family:var(--mono);font-size:13px;color:var(--ink)}
+.grade .g-stage{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-faint);text-align:center;line-height:1.3}
+.grade.again,.grade.demoting{border-color:var(--shu);color:var(--shu-text);background:var(--shu-soft)}
+.grade.again .g-ivl,.grade.again .g-stage,
+.grade.demoting .g-ivl,.grade.demoting .g-stage{color:var(--shu-text);opacity:.85}
+.grade.again:hover,.grade.demoting:hover{background:var(--shu-soft);border-color:var(--shu)}
+
+.row{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.undo{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink-faint)}
+.undo:hover{color:var(--ink)}
+
+/* ── empty / message states ───────────────────── */
+.empty{text-align:center;padding:clamp(30px,9vw,70px) 0}
+.empty .glyph{font-family:var(--jp-mincho);font-size:64px;color:var(--grid-line);line-height:1;margin-bottom:20px}
+.empty h2{font-family:var(--serif);font-weight:500;font-size:26px;margin:0 0 8px}
+.empty p{color:var(--ink-soft);margin:0 auto 18px;max-width:44ch}
+.empty .when{font-family:var(--mono);font-size:13px;color:var(--grid)}
+.receipt{
+  display:inline-block;margin:18px auto 4px;padding:11px 16px;
+  border:1px solid var(--grid-line);background:var(--paper-raised);
+  font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--ink-soft);text-align:left;
+}
+.receipt b{font-family:var(--jp-mincho);font-size:19px;color:var(--ink);font-weight:400;vertical-align:-2px}
+.receipt .tick{color:var(--grid);margin-right:7px}
+.receipt .miss{color:var(--shu-text)}
+.receipt[hidden]{display:none}
+
+/* ── setup / settings ─────────────────────────── */
+.panel{max-width:560px}
+.panel h1{font-family:var(--serif);font-weight:500;font-size:clamp(28px,5vw,38px);margin:0 0 10px;letter-spacing:-.01em}
+.panel h2{font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)}
+.panel p{color:var(--ink-soft);max-width:56ch}
+.panel a{color:var(--grid)}
+.field{display:block;margin:16px 0}
+.field .lbl{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+.field input[type=text],.field input[type=password],.field input[type=number],.field select{
+  width:100%;padding:11px 12px;background:var(--paper-raised);
+  border:1px solid var(--grid-line);border-radius:2px;font-family:var(--mono);font-size:14px;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--grid)}
+.field .hint{font-size:12px;color:var(--ink-faint);margin-top:6px}
+.inline{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.inline .field{flex:1 1 130px;margin:0}
+.toggle{display:flex;align-items:center;gap:10px;margin:12px 0;font-size:14px;color:var(--ink-soft);cursor:pointer}
+.toggle input{width:16px;height:16px;accent-color:var(--grid)}
+.status{
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;margin-top:16px;
+  padding:12px 14px;border-left:2px solid var(--grid-line);background:var(--paper-raised);
+  white-space:pre-wrap;
+}
+.status.err{border-color:var(--shu);color:var(--shu-text)}
+.status[hidden]{display:none}
+.danger{color:var(--shu-text);border-color:var(--shu)}
+.danger:hover{border-color:var(--shu)}
+.btn.armed{background:var(--shu);color:var(--ink-on-accent);border-color:var(--shu)}
+.btn.armed:hover{background:var(--shu);opacity:.9}
+
+/* ── stats ────────────────────────────────────── */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;background:var(--grid-hair);border:1px solid var(--grid-hair);margin-bottom:8px}
+.tile{background:var(--paper);padding:16px 16px 14px}
+.tile .t-num{font-family:var(--mono);font-size:27px;line-height:1.05;letter-spacing:-.02em}
+.tile .t-sub{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-top:6px;white-space:nowrap}
+.tile .t-num small{font-size:14px;color:var(--ink-faint)}
+
+.stagebar{display:flex;height:26px;border:1px solid var(--grid-hair);margin-bottom:10px;overflow:hidden}
+.stagebar div{transition:flex-grow .3s ease}
+.legend{display:flex;flex-wrap:wrap;gap:6px 20px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:6px}
+.legend i{display:inline-block;width:9px;height:9px;margin-right:6px;font-style:normal}
+
+.chart{display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--grid-hair);padding-top:8px}
+/* Each bar is a column-reverse flex container: its own background is
+   only the empty-bucket sliver (min-height:1px, nothing due), and stage
+   segments — flex-grown proportionally to their share — stack inside it
+   from the bottom (trainee) up to the top (enlightened). The stage
+   colors (--s-trainee etc.) are semi-transparent tile tints, same as on
+   the Items page, so they need a hue-neutral backdrop; a tinted one
+   (e.g. the teal --grid-line) bleeds through and casts every segment
+   toward that hue instead of its own color. */
+.chart .bar{flex:1;display:flex;flex-direction:column-reverse;background:var(--ink-faint);position:relative;min-height:1px;transition:height .25s ease}
+.chart .bar i{display:block;width:100%}
+.chart .bar:hover{filter:brightness(1.15)}
+.chart .bar[data-today="1"]{box-shadow:inset 0 0 0 2px var(--shu)}
+.charttip{
+  position:fixed;z-index:60;pointer-events:none;
+  background:var(--paper-raised);border:1px solid var(--grid-line);
+  padding:8px 12px;font-family:var(--mono);font-size:11.5px;line-height:1.65;
+  color:var(--ink-soft);white-space:nowrap;box-shadow:0 3px 12px rgba(var(--shadow-rgb),.12);
+  transform:translate(-50%,-100%);
+}
+[data-theme="dark"] .charttip{box-shadow:0 3px 12px rgba(var(--shadow-rgb),.5)}
+.charttip .tt-when{color:var(--ink);letter-spacing:.06em;text-transform:uppercase;font-size:10px}
+.charttip .tt-tot{color:var(--ink);font-size:15px}
+.charttip .tt-split i{display:inline-block;width:7px;height:7px;margin-right:5px}
+.charttip .tt-kv{margin-top:4px;padding-top:4px;border-top:1px solid var(--grid-hair);color:var(--ink-faint)}
+.axis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:6px}
+
+.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.heat i{width:100%;aspect-ratio:1;background:var(--heat-0);border-radius:4px;display:block}
+.heat i[data-l="1"]{background:var(--heat-1)}
+.heat i[data-l="2"]{background:var(--heat-2)}
+.heat i[data-l="3"]{background:var(--heat-3)}
+.heat i[data-l="4"]{background:var(--heat-max)}
+
+/* ── items ────────────────────────────────────── */
+.levels{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.levelrow{display:flex;align-items:center;gap:12px}
+.levelrow .lv{
+  font-family:var(--mono);font-size:11px;color:var(--ink-faint);
+  width:3.2em;text-align:right;flex:0 0 auto;
+}
+.levelrow .lbar{display:flex;height:14px;flex:1;border:1px solid var(--grid-hair);overflow:hidden}
+.levelrow .lbar i{display:block}
+.levelrow .lnum{font-family:var(--mono);font-size:11px;color:var(--ink-soft);width:5.5em;flex:0 0 auto}
+.itemcontrols{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  margin:22px 0 14px;padding-bottom:14px;border-bottom:1px solid var(--grid-hair);
+}
+.itemcontrols input[type=search]{
+  flex:1 1 200px;min-width:160px;padding:9px 11px;
+  background:var(--paper-raised);border:1px solid var(--grid-line);border-radius:2px;
+  font-family:var(--sans);font-size:13px;
+}
+.itemcontrols select{
+  padding:9px 10px;background:var(--paper-raised);
+  border:1px solid var(--grid-line);border-radius:2px;
+  font-family:var(--mono);font-size:12px;
+}
+.itemcontrols input:focus,.itemcontrols select:focus{outline:none;border-color:var(--grid)}
+.lvhead{
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-faint);margin:18px 0 8px;display:flex;gap:10px;align-items:baseline;
+}
+.lvhead b{color:var(--ink);font-weight:500}
+.igrid{display:flex;flex-wrap:wrap;gap:4px}
+.tile-item{
+  font-family:var(--jp-mincho);font-size:19px;line-height:1.15;
+  padding:6px 9px 5px;border:1px solid var(--grid-hair);border-radius:2px;
+  background:var(--paper-raised);color:var(--ink);
+  transition:border-color .12s ease,transform .12s ease;
+}
+/* Vocabulary reads as a leaf: rounded upper-left and lower-right. */
+.tile-item.vocab{font-size:17px;border-radius:11px 2px 11px 2px}
+.tile-item:hover{border-color:var(--grid);transform:translateY(-1px)}
+.tile-item[data-sel="1"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+/* Stage is carried by the fill. Now that every fill is fully opaque
+   (not a translucent tint over the default --ink text), each stage
+   needs its own legible text color rather than inheriting the default:
+   trainee's gold stays bright in both themes, so it always wants dark
+   text; apprentice/master are dark-in-light/mid-in-dark, so --paper
+   (which itself flips light/dark per theme) reads well on both. Guru's
+   mid-tone teal is the odd one out — see --s-guru-text above. */
+.tile-item[data-g="lesson"]{background:var(--paper);border-style:dashed;color:var(--ink-soft)}
+.tile-item[data-g="trainee"]{background:var(--s-trainee);border-color:transparent;color:var(--ink-on-accent)}
+.tile-item[data-g="apprentice"]{background:var(--s-apprentice);border-color:transparent;color:var(--paper)}
+.tile-item[data-g="guru"]{background:var(--s-guru);border-color:transparent;color:var(--s-guru-text)}
+.tile-item[data-g="master"]{background:var(--s-master);border-color:transparent;color:var(--ink-on-accent)}
+.tile-item[data-g="enlightened"]{background:var(--s-enlightened);border-color:transparent;color:var(--paper)}
+.tile-item[data-g="burned"]{background:var(--s-burned);border-color:transparent;color:var(--paper)}
+.tile-item[data-locked="1"]{opacity:.5}
+.itemdetail{
+  position:sticky;top:58px;z-index:5;
+  border:1px solid var(--grid-line);background:var(--paper-raised);
+  padding:14px 16px;margin-bottom:14px;
+}
+.itemdetail .d-top{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.itemdetail .d-ch{font-family:var(--jp-mincho);font-size:34px;line-height:1;color:var(--ink)}
+.itemdetail .d-kw{font-family:var(--serif);font-size:20px}
+.itemdetail .d-rd{font-family:var(--jp-gothic);font-size:16px;color:var(--ink-soft)}
+.itemdetail .d-meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:8px;line-height:1.7}
+.itemdetail .d-links{margin-top:8px;display:flex;gap:14px}
+.itemdetail .d-links a{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);text-decoration:none;border-bottom:1px solid var(--grid-hair)}
+.itemdetail .d-links a:hover{color:var(--grid);border-color:var(--grid)}
+.itemdetail .d-close{position:absolute;top:10px;right:12px;font-family:var(--mono);font-size:14px;color:var(--ink-faint)}
+.itemdetail .d-close:hover{color:var(--ink)}
+table.leech{width:100%;border-collapse:collapse;font-size:14px}
+table.leech td{padding:9px 8px;border-bottom:1px solid var(--grid-hair);vertical-align:middle}
+table.leech td.ch{font-family:var(--jp-mincho);font-size:26px;width:1%;padding-right:16px}
+table.leech td.num{font-family:var(--mono);font-size:12px;color:var(--shu-text);text-align:right;white-space:nowrap}
+table.leech td.lv{font-family:var(--mono);font-size:11px;color:var(--ink-faint);text-align:right;white-space:nowrap}
+
+.muted{color:var(--ink-faint);font-size:13px}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);border-radius:2px;padding:1px 5px;color:var(--ink-soft)}
+
+@media (max-width:520px){
+  .grades{grid-template-columns:repeat(3,1fr);gap:5px}
+  .grade{padding:10px 2px 8px}
+  .grade .g-name{font-size:10.5px;letter-spacing:.06em}
+  .counts{font-size:11px;gap:10px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="charttip" id="charttip" hidden></div>
+<div class="rail">
+  <div class="mark"><span class="glyph">手書練</span><span class="name">Handwriting Practice</span></div>
+  <div class="counts" id="counts">
+    <span class="c-new" id="c-lessons">lessons <b>0</b></span>
+    <span class="c-rev" id="c-reviews">reviews <b>0</b><em class="c-next" id="c-next"></em></span>
+    <span class="c-batch" id="c-batch" hidden>batch <b>0</b></span>
+  </div>
+  <nav class="navlinks">
+    <button data-go="review" aria-current="true">Practice</button>
+    <button data-go="items">Items</button>
+    <button data-go="stats">Stats</button>
+    <button data-go="setup">Setup</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ══ REVIEW ══════════════════════════════════ -->
+<section class="view" id="v-review">
+  <div class="stage" id="stage" hidden>
+    <div class="subjmeta">
+      <span id="m-level">Level 1</span><span class="dot">·</span><span id="m-state">New</span>
+    </div>
+    <h1 class="keyword" id="m-keyword">—</h1>
+    <div class="promptreading" id="m-reading" hidden></div>
+    <div class="alts" id="m-alts"></div>
+
+    <div class="masu-row" id="masu-row"></div>
+    <div class="masu-caption" id="masu-caption">Write it, then reveal</div>
+
+    <div id="pre-reveal">
+      <button class="btn primary wide" id="btn-reveal">Show answer</button>
+      <div class="prompt-note">Space or Enter</div>
+    </div>
+
+    <div id="post-reveal" hidden>
+      <div class="readings" id="m-readings"></div>
+      <div class="extlinks">
+        <a id="lnk-wk" target="_blank" rel="noopener">WaniKani</a>
+        <a id="lnk-jisho" target="_blank" rel="noopener">Jisho</a>
+        <button class="btn quiet" id="btn-replay" style="padding:0;font-size:11px;letter-spacing:.1em" hidden>Replay strokes (R)</button>
+        <button class="btn quiet" id="btn-mnemonic" style="padding:0;font-size:11px;letter-spacing:.1em">Mnemonic</button>
+      </div>
+      <div class="stroke-note" id="stroke-note" hidden></div>
+      <div class="mnemonic" id="m-mnemonic" hidden></div>
+      <div class="row">
+        <div class="grades">
+          <button class="grade again" data-grade="1"><span class="g-name">Incorrect</span><span class="g-ivl" id="ivl1">—</span><span class="g-stage" id="stg1"></span></button>
+          <button class="grade" data-grade="2" id="btn-partial"><span class="g-name">Partial</span><span class="g-ivl" id="ivl2">—</span><span class="g-stage" id="stg2"></span></button>
+          <button class="grade" data-grade="3"><span class="g-name">Correct</span><span class="g-ivl" id="ivl3">—</span><span class="g-stage" id="stg3"></span></button>
+        </div>
+      </div>
+      <div class="prompt-note" id="grade-hint"><kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct</div>
+    </div>
+
+    <div class="row">
+      <button class="undo" id="btn-undo" hidden>← Undo last answer (U)</button>
+    </div>
+  </div>
+
+  <div class="empty" id="empty-done" hidden>
+    <div class="glyph">休</div>
+    <h2 id="done-title">Nothing due right now</h2>
+    <p id="done-body">You're caught up.</p>
+    <div class="when" id="done-when"></div>
+    <div class="receipt" id="receipt" hidden></div>
+    <div class="row batchrow">
+      <label class="batchlabel">Study ahead
+        <input type="number" id="in-batch" min="1" max="500" step="1" value="5">
+        more
+      </label>
+      <button class="btn primary" id="btn-batch">Batch, please</button>
+    </div>
+    <div class="row">
+      <button class="btn quiet" id="btn-undo2" hidden>Undo last answer (U)</button>
+    </div>
+  </div>
+
+  <div class="empty" id="empty-nodata" hidden>
+    <div class="glyph">始</div>
+    <h2>No kanji loaded yet</h2>
+    <p>Connect your WaniKani account to pull the kanji you've unlocked, or try the demo deck first.</p>
+    <div class="row">
+      <button class="btn primary" data-go="setup">Go to setup</button>
+      <button class="btn" id="btn-demo">Load demo deck</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ITEMS ═══════════════════════════════════ -->
+<section class="view" id="v-items" hidden>
+  <p class="eyebrow">Everything in your deck</p>
+  <div class="stagebar" id="i-bar"></div>
+  <div class="legend" id="i-legend"></div>
+  <div class="tiles" id="i-tiles" style="margin-top:18px"></div>
+  <div class="tiles" id="i-tiles2" style="margin-top:1px"></div>
+
+  <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">By WaniKani level</h2>
+  <div class="levels" id="i-levels"></div>
+  <p class="muted" id="i-levelnote"></p>
+
+  <div class="itemcontrols">
+    <input type="search" id="i-search" placeholder="Search character, meaning, or reading" spellcheck="false">
+    <select id="i-type">
+      <option value="all">All types</option>
+      <option value="kanji">Kanji only</option>
+      <option value="vocabulary">Vocabulary only</option>
+    </select>
+    <select id="i-group">
+      <option value="all">All stages</option>
+      <option value="lesson">Lesson</option>
+      <option value="trainee">Trainee</option>
+      <option value="apprentice">Apprentice</option>
+      <option value="guru">Guru</option>
+      <option value="master">Master</option>
+      <option value="enlightened">Enlightened</option>
+      <option value="burned">Burned</option>
+      <option value="locked">Locked vocabulary</option>
+    </select>
+    <select id="i-sort">
+      <option value="level">Group by level</option>
+      <option value="stage">Group by stage</option>
+      <option value="due">Soonest review first</option>
+    </select>
+  </div>
+
+  <div class="itemdetail" id="i-detail" hidden></div>
+  <div id="i-grid"></div>
+  <p class="muted" id="i-count"></p>
+</section>
+
+<!-- ══ STATS ═══════════════════════════════════ -->
+<section class="view" id="v-stats" hidden>
+  <p class="eyebrow">Today</p>
+  <div class="tiles" id="tiles-today"></div>
+
+  <p class="eyebrow" style="margin-top:30px">All time</p>
+  <div class="tiles" id="tiles-alltime"></div>
+  <p class="muted" id="alltime-note" style="margin-top:8px"></p>
+
+  <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">Coming up in 24 hours</h2>
+  <div class="chart" id="hourly"></div>
+  <div class="axis" id="axis-hourly"><span>available now</span><span></span><span></span><span></span></div>
+
+  <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">Due over the next 14 days</h2>
+  <div class="chart" id="forecast"></div>
+  <div class="axis" id="axis-daily"><span>today</span><span></span><span></span><span></span></div>
+
+  <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">Answers per day</h2>
+  <div class="heat" id="heat"></div>
+  <div class="axis" style="margin-top:8px"><span id="heat-from"></span><span>today</span></div>
+
+  <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">Hardest to write</h2>
+  <p class="muted" id="leech-note">Kanji you've forgotten the most times. Worth a dedicated page in your notebook.</p>
+  <table class="leech" id="leech"></table>
+</section>
+
+<!-- ══ SETUP ═══════════════════════════════════ -->
+<section class="view panel" id="v-setup" hidden>
+  <h1>Setup</h1>
+
+  <h2>WaniKani connection</h2>
+  <label class="field">
+    <span class="lbl">Personal access token</span>
+    <input type="password" id="in-token" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
+    <span class="hint">Read-only token from <a href="https://www.wanikani.com/settings/personal_access_tokens" target="_blank" rel="noopener">wanikani.com/settings/personal_access_tokens</a>. Stored on this device only. Pulls items you've started; nothing is written back.</span>
+  </label>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn primary" id="btn-sync">Sync from WaniKani</button>
+    <button class="btn" id="btn-demo2">Load demo deck</button>
+  </div>
+  <div class="status" id="sync-status" hidden></div>
+
+  <h2>Scheduling</h2>
+  <p class="muted">1 h · 2 h · 4 h · 8 h · 23 h · 47 h · 1 wk · 2 wk · 1 mo · 4 mo. Correct moves up one stage; incorrect drops one from Apprentice, two from Guru up. Partial holds, twice in a row demotes.</p>
+  <label class="toggle"><input type="checkbox" id="in-burn"> Retire items at Burned</label>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn" id="btn-resurrect">Resurrect burned items</button>
+  </div>
+
+  <h2>Vocabulary</h2>
+  <label class="toggle"><input type="checkbox" id="in-vocab"> Include WaniKani vocabulary</label>
+  <p class="muted">Prompted by reading and meaning; you write the kanji form. Kana-only words are skipped. A word unlocks once every kanji in it reaches Guru here.</p>
+  <label class="field">
+    <span class="lbl">New words enter at</span>
+    <select id="in-vocabstart">
+      <option value="1">Trainee I — 1 h (same as kanji)</option>
+      <option value="3">Apprentice I — 4 h</option>
+      <option value="5">Apprentice III — next day</option>
+      <option value="6">Apprentice IV — 2 days</option>
+    </select>
+    <span class="hint">Higher entry skips the same-day repetition.</span>
+  </label>
+
+  <h2>Daily limits</h2>
+  <div class="inline">
+    <label class="field"><span class="lbl">Kanji lessons</span><input type="number" id="in-new" min="0" max="200" step="1"></label>
+    <label class="field"><span class="lbl">Max kanji reviews</span><input type="number" id="in-max" min="0" max="999" step="1"></label>
+  </div>
+  <div class="inline">
+    <label class="field"><span class="lbl">Word lessons</span><input type="number" id="in-vnew" min="0" max="200" step="1"></label>
+    <label class="field"><span class="lbl">Max word reviews</span><input type="number" id="in-vmax" min="0" max="999" step="1"></label>
+  </div>
+  <p class="muted">Counted separately, so the two totals add up. Reviews over a cap wait for tomorrow rather than disappearing.</p>
+  <label class="toggle"><input type="checkbox" id="in-interleave"> Mix lessons into reviews</label>
+  <p class="muted">Off means lessons only start once the review queue is clear. Either way, kanji lessons come before word lessons, and word lessons never jump ahead of a kanji review.</p>
+  <label class="field">
+    <span class="lbl">Review order</span>
+    <select id="in-revorder">
+      <option value="random">Random</option>
+      <option value="stage">Lowest 手書練 stage first</option>
+      <option value="level">Oldest WaniKani level first</option>
+    </select>
+  </label>
+  <label class="field">
+    <span class="lbl">Lesson order</span>
+    <select id="in-order">
+      <option value="level">WaniKani level, lowest first</option>
+      <option value="srs">Highest WaniKani SRS stage first</option>
+      <option value="random">Random</option>
+    </select>
+  </label>
+
+  <h2>Stroke order</h2>
+  <label class="toggle"><input type="checkbox" id="in-stroke"> Redraw stroke by stroke after the reveal</label>
+  <div class="inline">
+    <label class="field">
+      <span class="lbl">Hold before redrawing</span>
+      <input type="number" id="in-strokedelay" min="0" max="15" step="0.5">
+      <span class="hint">Seconds.</span>
+    </label>
+    <label class="field">
+      <span class="lbl">Speed — <span id="speedval">3×</span></span>
+      <input type="range" id="in-strokespeed" min="0.25" max="10" step="0.25">
+      <span class="hint">Press <kbd>R</kbd> to replay.</span>
+    </label>
+  </div>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn" id="btn-fetchStrokes">Download stroke data for my deck</button>
+    <button class="btn" id="btn-testStroke">Test connection</button>
+  </div>
+  <div class="status" id="stroke-status" hidden></div>
+  <p class="muted">Stroke paths from <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noopener">KanjiVG</a>, CC BY-SA 3.0. Cached after first download.</p>
+
+  <h2>Display</h2>
+  <label class="toggle"><input type="checkbox" id="in-alts"> Show alternative meanings on the prompt</label>
+  <label class="toggle"><input type="checkbox" id="in-readings"> Show readings on reveal</label>
+  <label class="toggle"><input type="checkbox" id="in-dark"> Dark mode</label>
+
+  <h2>Your data</h2>
+  <p class="muted" id="data-summary"></p>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn" id="btn-export">Export backup</button>
+    <button class="btn" id="btn-import">Import backup</button>
+    <button class="btn danger" id="btn-reset">Erase all progress</button>
+  </div>
+  <input type="file" id="file-import" accept="application/json" hidden>
+  <div class="status" id="data-status" hidden></div>
+
+  <h2>Sync across devices</h2>
+  <p class="muted">Progress syncs through a private GitHub Gist. On your first device, paste a token and leave the Gist ID blank — syncing creates the gist and shows you the ID. Paste that same ID (with its own token) into this field on every other device to link them together.</p>
+  <label class="field">
+    <span class="lbl">GitHub personal access token</span>
+    <input type="password" id="in-sync-token" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false">
+    <span class="hint">Create one at <a href="https://github.com/settings/tokens/new?scopes=gist&description=Kanji+writing+practice+sync" target="_blank" rel="noopener">github.com/settings/tokens</a> — that link pre-checks the single <b>gist</b> scope, nothing broader. Stored on this device only, never included in an exported backup.</span>
+  </label>
+  <label class="field">
+    <span class="lbl">Gist ID</span>
+    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first sync" autocomplete="off" spellcheck="false">
+    <span class="hint">The same ID on every device is what links them. Leave this blank the very first time.</span>
+  </label>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn primary" id="btn-sync-now">Sync now</button>
+  </div>
+  <div class="status" id="gh-sync-status" hidden></div>
+  <p class="muted">Whichever device saved most recently wins if two devices both changed things while offline — this is built for one person moving between their own devices, not simultaneous editing.</p>
+
+  <h2>Keyboard</h2>
+  <p class="muted"><kbd>Space</kbd> reveal, then correct · <kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct · <kbd>U</kbd> undo · <kbd>M</kbd> mnemonic · <kbd>R</kbd> replay</p>
+</section>
+
+</main>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════
+   Storage — uses the artifact storage API when present,
+   falls back to localStorage when the file is opened directly.
+   ═══════════════════════════════════════════════════════════════ */
+const hasWS = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+const DB = {
+  async get(k){
+    if(hasWS){
+      try{ const r = await window.storage.get(k, false); return r ? JSON.parse(r.value) : null; }
+      catch(e){ return null; }
+    }
+    try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }catch(e){ return null; }
+  },
+  async set(k,v){
+    const s = JSON.stringify(v);
+    if(hasWS){
+      try{ await window.storage.set(k, s, false); return true; }catch(e){ return false; }
+    }
+    try{ localStorage.setItem(k, s); return true; }catch(e){ return false; }
+  },
+  async del(k){
+    if(hasWS){ try{ await window.storage.delete(k, false); }catch(e){} return; }
+    try{ localStorage.removeItem(k); }catch(e){}
+  }
+};
+const K_DATA = "kwp:data", K_SUBJ = "kwp:subjects", K_STROKE = "kwp:strokes";
+
+/* ═══════════════════════════════════════════════════════════════
+   Cross-device sync — a private GitHub Gist as the shared store, so
+   progress made on one device shows up on another without a real
+   backend. The token and gist id live directly in localStorage, never
+   inside S — they're per-device credentials, not data, so they must
+   never end up in the Export/Import backup file or get pushed into the
+   gist's own payload.
+
+   Conflict handling is last-write-wins on S.meta.updatedAt: whichever
+   device saved most recently overwrites the gist, and pulling adopts
+   the gist's copy only if it's newer than what's local. That's the
+   right tradeoff for one person moving between their own devices, but
+   it is NOT built for two devices being used at the same time — the
+   loser's changes in that window are silently gone. Pulling happens on
+   boot and when the tab regains focus to keep that window small; the
+   explicit "Sync now" button does the same pull-then-decide dance on
+   demand.
+   ═══════════════════════════════════════════════════════════════ */
+const SYNC_FILE = "kanji-writing-practice-sync.json";
+const K_SYNC_TOKEN = "kwp:sync-token", K_SYNC_GIST = "kwp:sync-gist";
+function syncConfig(){
+  let token="", gistId="";
+  try{ token = localStorage.getItem(K_SYNC_TOKEN) || ""; }catch(e){}
+  try{ gistId = localStorage.getItem(K_SYNC_GIST) || ""; }catch(e){}
+  return {token, gistId};
+}
+function setSyncToken(v){ try{ localStorage.setItem(K_SYNC_TOKEN, v||""); }catch(e){} }
+function setSyncGist(v){ try{ localStorage.setItem(K_SYNC_GIST, v||""); }catch(e){} }
+async function ghRequest(url, opts, token){
+  const r = await fetch(url, {
+    ...opts,
+    headers:{
+      "Authorization":"token "+token,
+      "Accept":"application/vnd.github+json",
+      "Content-Type":"application/json",
+      ...((opts && opts.headers) || {})
+    }
+  });
+  if(!r.ok){
+    let msg = r.statusText;
+    try{ msg = (await r.json()).message || msg; }catch(e){}
+    throw new Error("GitHub "+r.status+": "+msg);
+  }
+  return r.json();
+}
+async function pushSync(){
+  const {token, gistId} = syncConfig();
+  if(!token) throw new Error("No GitHub token set.");
+  const content = JSON.stringify({v:1, data:S, subjects:SUBJ});
+  if(gistId){
+    await ghRequest("https://api.github.com/gists/"+gistId, {
+      method:"PATCH",
+      body: JSON.stringify({files:{[SYNC_FILE]:{content}}})
+    }, token);
+    return gistId;
+  }
+  const created = await ghRequest("https://api.github.com/gists", {
+    method:"POST",
+    body: JSON.stringify({
+      description:"Kanji writing practice — sync data (private)",
+      public:false,
+      files:{[SYNC_FILE]:{content}}
+    })
+  }, token);
+  setSyncGist(created.id);
+  return created.id;
+}
+async function pullSync(){
+  const {token, gistId} = syncConfig();
+  if(!token || !gistId) return null;
+  const gist = await ghRequest("https://api.github.com/gists/"+gistId, {method:"GET"}, token);
+  const file = gist.files && gist.files[SYNC_FILE];
+  if(!file || !file.content) return null;
+  return JSON.parse(file.content);
+}
+/* Pulls, keeps whichever side is newer, and pushes if local should win.
+   Returns a short human-readable summary for the status line. */
+async function runSync(){
+  const {token, gistId} = syncConfig();
+  if(!token) return "No GitHub token set — nothing to sync.";
+  const localTime = (S.meta && S.meta.updatedAt) || 0;
+  const remote = await pullSync();
+  const remoteTime = (remote && remote.data && remote.data.meta && remote.data.meta.updatedAt) || 0;
+  if(remote && remoteTime > localTime){
+    S = {...S, ...remote.data};
+    S.settings = {...DEFAULT_SETTINGS, ...S.settings};
+    SUBJ = remote.subjects || SUBJ;
+    await DB.set(K_SUBJ, SUBJ); await saveNow();
+    fillSettings(); applySettings(); renderDataSummary(); renderCounts();
+    if(!$("#v-review").hidden) showCard();
+    if(!$("#v-items").hidden) renderItems();
+    if(!$("#v-stats").hidden) renderStats();
+    return "Pulled newer progress from another device.";
+  }
+  const id = await pushSync();
+  return gistId
+    ? "This device was newer — pushed to sync."
+    : "Created a new sync gist. Paste this Gist ID into the same field on your other devices: "+id;
+}
+let syncPushTimer = null;
+/* Called after every local save; pushes to the gist a few seconds after
+   things go quiet, so a full review session doesn't fire a GitHub API
+   request per card. Silent by design — errors here shouldn't interrupt
+   reviewing, they'll surface next time "Sync now" is pressed. */
+function scheduleSyncPush(){
+  if(!syncConfig().token) return;
+  clearTimeout(syncPushTimer);
+  syncPushTimer = setTimeout(()=>{
+    // A first-ever push (no gist id yet) creates the gist and saves its
+    // id — if Setup happens to be open, reflect that id right away
+    // instead of leaving the field blank until the next visit.
+    pushSync().then(()=>{ if(!$("#v-setup").hidden) $("#in-sync-gist").value = syncConfig().gistId; }).catch(()=>{});
+  }, 4000);
+}
+/* Best-effort pull, used on boot and when the tab regains focus. Unlike
+   runSync(), never pushes — a background check shouldn't be the thing
+   that overwrites the gist, only an explicit save or Sync-now click. */
+async function backgroundPull(){
+  const {token, gistId} = syncConfig();
+  if(!token || !gistId) return;
+  try{
+    const localTime = (S.meta && S.meta.updatedAt) || 0;
+    const remote = await pullSync();
+    const remoteTime = (remote && remote.data && remote.data.meta && remote.data.meta.updatedAt) || 0;
+    if(remote && remoteTime > localTime){
+      S = {...S, ...remote.data};
+      S.settings = {...DEFAULT_SETTINGS, ...S.settings};
+      SUBJ = remote.subjects || SUBJ;
+      await DB.set(K_SUBJ, SUBJ); await saveNow();
+      fillSettings(); applySettings(); renderDataSummary(); renderCounts();
+      if(!$("#v-review").hidden && !current) showCard();
+      if(!$("#v-items").hidden) renderItems();
+      if(!$("#v-stats").hidden) renderStats();
+    }
+  }catch(e){ /* silent — next manual Sync now will surface the error */ }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Scheduler — WaniKani SRS, normal (non-accelerated) timings.
+   Stage 0 is an unseen lesson; 9 is burned. Intervals are the exact
+   values WaniKani uses, including its trick of landing an hour short
+   of the round number so reviews resurface at the same time of day.
+   ═══════════════════════════════════════════════════════════════ */
+/* WaniKani's normal (non-accelerated) ladder, with 1 h and 2 h added at
+   the front for denser early writing practice, named Trainee so WK's
+   Apprentice numbering still lines up. Longer stages keep WK's
+   trick of landing an hour short of the round number, so reviews
+   resurface at the same time of day instead of drifting later. */
+const STAGES = [
+  {n:"Lesson",          sec:0},
+  {n:"Trainee I",       sec:3600},        // 1 h  — added, not a WaniKani stage
+  {n:"Trainee II",      sec:7200},        // 2 h  — added, not a WaniKani stage
+  {n:"Apprentice I",    sec:14400},       // 4 h
+  {n:"Apprentice II",   sec:28800},       // 8 h
+  {n:"Apprentice III",  sec:82800},       // 23 h
+  {n:"Apprentice IV",   sec:169200},      // 47 h
+  {n:"Guru I",          sec:601200},      // 167 h ≈ 1 wk
+  {n:"Guru II",         sec:1206000},     // 335 h ≈ 2 wk
+  {n:"Master",          sec:2588400},     // 719 h ≈ 1 mo
+  {n:"Enlightened",     sec:10364400},    // 2879 h ≈ 4 mo
+  {n:"Burned",          sec:null}
+];
+const BURNED = 11;
+const GURU = 7;                 // first Guru stage — the vocabulary gate
+const TRAINEE_TOP = 2;
+const APPRENTICE_TOP = 6;
+const SR = { dayCutoffHour:4 };
+const MIN=6e4, DAY=864e5;
+const now = ()=>Date.now();
+/* Reviews are batched into 5-minute buckets aligned to the top of the
+   hour (:00, :05, :10, …) rather than landing at the exact second their
+   interval elapses. Cards scheduled moments apart become due together,
+   so the review queue arrives in waves instead of trickling in one at a
+   time. Five minutes divides evenly into every real-world UTC offset, so
+   this lands on the hour locally no matter the timezone. */
+const BUCKET = 5*MIN;
+function bucketDue(ms){ return isFinite(ms) ? Math.ceil(ms/BUCKET)*BUCKET : ms; }
+
+function dayIndex(ts){ return Math.floor((ts - SR.dayCutoffHour*36e5) / DAY); }
+function todayIdx(){ return dayIndex(now()); }
+function stageName(s){ return (STAGES[s]||{}).n || "?"; }
+function isBurned(c){ return c.stage >= BURNED; }
+
+function newCard(subjectId){
+  return { id:subjectId, stage:0, due:0, reps:0, correct:0,
+           lapses:0, partials:0, pstreak:0, intro:0 };
+}
+
+/* WaniKani's penalty: drop one stage from Apprentice, two from Guru up. */
+function demote(stage){
+  if(stage <= 1) return 1;
+  return Math.max(1, stage - (stage >= GURU ? 2 : 1));
+}
+
+/* g — 1 incorrect, 2 partial, 3 correct. Pure; returns the next card. */
+function project(c, g){
+  const n = {...c};
+  const t = now();
+  const cap = S.settings.burn ? BURNED : BURNED - 1;
+
+  // A lesson answered correctly normally enters at stage 1. Vocabulary
+  // starts higher: the Guru gate already proved you can write every kanji
+  // in it, so the same-day churn is largely redundant.
+  const entry = isVocab(n.id) ? clamp(S.settings.vocabStart||1, 1, APPRENTICE_TOP) : 1;
+  if(n.stage === 0){
+    n.stage = g === 3 ? entry : g === 2 ? Math.max(1, entry-1) : 1;
+    n.pstreak = 0;
+    if(g === 3) n.correct++; else if(g === 2) n.partials++; else n.lapses++;
+    const sec0 = STAGES[n.stage].sec;
+    n.due = bucketDue(t + sec0*1000);
+    n.reps++;
+    return n;
+  }
+  if(g === 3){
+    n.stage = Math.min(cap, n.stage + 1);
+    n.pstreak = 0; n.correct++;
+  } else if(g === 2){
+    // Holds the current stage — unless it's the second partial in a row,
+    // which counts as a miss and demotes.
+    if(n.pstreak >= 1){ n.stage = demote(n.stage); n.pstreak = 0; }
+    else { n.stage = Math.max(1, n.stage); n.pstreak = 1; }
+    n.partials++;
+  } else {
+    n.stage = demote(n.stage);
+    n.pstreak = 0; n.lapses++;
+  }
+
+  const sec = STAGES[n.stage].sec;
+  n.due = (sec === null) ? Infinity : bucketDue(t + sec*1000);
+  n.reps++;
+  return n;
+}
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+/* Coarse enough to stay calm, precise enough to be worth reading. */
+function fmtCountdown(ms){
+  if(!isFinite(ms)) return "";
+  if(ms < 60000) return "under a minute";
+  const m = Math.floor(ms/60000);
+  if(m < 60) return m+"m";
+  const h = Math.floor(m/60), rm = m%60;
+  if(h < 24) return rm ? h+"h "+rm+"m" : h+"h";
+  const d = Math.floor(h/24), rh = h%24;
+  return rh ? d+"d "+rh+"h" : d+"d";
+}
+function fmtIvl(ms){
+  if(ms === Infinity) return "burned";
+  if(ms < 60*1000) return "now";
+  const m = ms/MIN;
+  if(m < 60) return Math.round(m)+" m";
+  const h = m/60; if(h < 48) return Math.round(h)+" h";
+  const d = h/24; if(d < 60) return Math.round(d)+" d";
+  const mo = d/30.4; if(mo < 24) return Math.round(mo)+" mo";
+  return (d/365).toFixed(1)+" y";
+}
+
+/* Migration from the earlier SM-2 build, by closest interval. */
+function migrate(){
+  let changed = false;
+  for(const k in S.cards){
+    const c = S.cards[k];
+    if(typeof c.stage === "number") continue;
+    changed = true;
+    let stage;
+    if(c.state === "new") stage = 0;
+    else if(c.state === "learn" || c.state === "relearn") stage = 1;
+    else {
+      const d = c.ivl || 1;
+      stage = d >= 120 ? 10 : d >= 30 ? 9 : d >= 14 ? 8 : d >= 7 ? 7 : d >= 2 ? 6 : 5;
+    }
+    S.cards[k] = { id:c.id, stage, due: stage===0 ? 0 : (c.due||0),
+                   reps:c.reps||0, correct:0, lapses:c.lapses||0,
+                   partials:0, pstreak:0, intro:c.intro||0 };
+  }
+  // The 9-stage ladder gained 1 h and 2 h at the front; shift old cards up.
+  if(!S.meta.stageScale2){
+    const MAP = [0,3,4,5,6,7,8,9,10,11];
+    for(const k in S.cards){
+      const c = S.cards[k];
+      if(c.stage >= 0 && c.stage < MAP.length) c.stage = MAP[c.stage];
+      delete c.pass;
+    }
+    S.meta.stageScale2 = 1; changed = true;
+  }
+  if(!S.meta.tally){ rebuildTally(); changed = true; }
+  // New stroke defaults. Only applied if the old defaults were left untouched.
+  if(!S.meta.strokeDefaults2){
+    if(S.settings.strokeDelay === 1.5) S.settings.strokeDelay = 0.5;
+    if(S.settings.strokeSpeed === 1)   S.settings.strokeSpeed = 3;
+    S.meta.strokeDefaults2 = 1; changed = true;
+  }
+  // Old logs used 1–4; anything above 1 was a correct answer.
+  for(const e of S.log){ if(e.g > 3){ e.g = 3; changed = true; } }
+  if(changed) save();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   App state
+   ═══════════════════════════════════════════════════════════════ */
+const DEFAULT_SETTINGS = {
+  token:"", newPerDay:15, maxReviews:120, order:"level", burn:true,
+  vocab:true, vocabStart:5, vocabNewPerDay:5, vocabMaxReviews:40, interleave:true,
+  reviewOrder:"random",
+  batchSize:5, strokeAnim:true, strokeDelay:0.5, strokeSpeed:3,
+  showAlts:true, showReadings:true, dark:false
+};
+let S = { settings:{...DEFAULT_SETTINGS}, cards:{}, log:[], meta:{} };
+let SUBJ = {};                 // subjectId -> subject data
+let current = null, revealed = false, extraQuota = 0;
+let pending = null, pendingAt = 0, lastAnswer = null;
+let undoStack = [];
+let saveTimer = null;
+
+async function loadAll(){
+  const d = await DB.get(K_DATA);
+  if(d){
+    S.settings = {...DEFAULT_SETTINGS, ...(d.settings||{})};
+    S.cards = d.cards||{}; S.log = d.log||[]; S.meta = d.meta||{};
+  }
+  SUBJ = (await DB.get(K_SUBJ)) || {};
+  await loadStrokeCache();
+  migrate();
+}
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    S.meta.updatedAt = Date.now();
+    DB.set(K_DATA, {settings:S.settings, cards:S.cards, log:S.log.slice(-12000), meta:S.meta});
+    scheduleSyncPush();
+  }, 900);
+}
+function saveNow(){
+  clearTimeout(saveTimer);
+  S.meta.updatedAt = Date.now();
+  const r = DB.set(K_DATA, {settings:S.settings, cards:S.cards, log:S.log.slice(-12000), meta:S.meta});
+  scheduleSyncPush();
+  return r;
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) saveNow(); else backgroundPull(); });
+
+/* ═══════════════════════════════════════════════════════════════
+   Queue
+   ═══════════════════════════════════════════════════════════════ */
+/* Today's answers, split by type — kanji and vocabulary have their own
+   daily allowances, so the two are tracked separately. */
+function todayCounts(){
+  const t = todayIdx();
+  const c = {kNew:0, kRev:0, vNew:0, vRev:0};
+  for(const e of S.log){
+    if(dayIndex(e.t) !== t) continue;
+    const v = (e.v !== undefined) ? e.v : (isVocab(e.id) ? 1 : 0);
+    if(e.n) c[v ? "vNew" : "kNew"]++;
+    else    c[v ? "vRev" : "kRev"]++;
+  }
+  return c;
+}
+/* Vocabulary is held back until every kanji in it has reached Guru here.
+   Applied to lessons only — once a word is in rotation it stays there
+   even if one of its kanji later slips back. */
+function isVocab(id){ return (SUBJ[id]||{}).type === "vocabulary"; }
+function vocabReady(id){
+  const s = SUBJ[id];
+  if(!s || s.type !== "vocabulary") return true;
+  const comp = s.components || [];
+  if(!comp.length) return false;
+  return comp.every(cid=>{ const c = S.cards[cid]; return c && c.stage >= GURU; });
+}
+/* Remaining allowance in each of the four buckets. */
+function caps(){
+  const ahead = extraQuota > 0;
+  const tc = todayCounts(), S_ = S.settings;
+  const left = (limit, used)=> ahead ? Infinity : Math.max(0, limit - used);
+  return {
+    kNew: left(S_.newPerDay, tc.kNew),
+    kRev: left(S_.maxReviews, tc.kRev),
+    vNew: left(S_.vocabNewPerDay, tc.vNew),
+    vRev: left(S_.vocabMaxReviews, tc.vRev)
+  };
+}
+function pools(){
+  const t = now();
+  const p = {dueK:[], dueV:[], lessK:[], lessV:[], locked:0};
+  for(const c of Object.values(S.cards)){
+    if(isBurned(c)) continue;
+    const v = isVocab(c.id);
+    if(c.stage === 0){
+      if(!vocabReady(c.id)){ p.locked++; continue; }
+      (v ? p.lessV : p.lessK).push(c);
+    } else if(c.due <= t){
+      (v ? p.dueV : p.dueK).push(c);
+    }
+  }
+  return p;
+}
+function pickNext(){
+  const p = pools(), cap = caps();
+  const dueK  = cap.kRev > 0 ? p.dueK  : [];
+  const dueV  = cap.vRev > 0 ? p.dueV  : [];
+  const lessK = cap.kNew > 0 ? p.lessK : [];
+  const lessV = cap.vNew > 0 ? p.lessV : [];
+  const rev = dueK.concat(dueV);
+
+  // Kanji lessons always come before word lessons, and word lessons wait
+  // behind every kanji review that's actually available today.
+  const less = lessK.length ? lessK : (dueK.length ? [] : lessV);
+
+  const pickRev = () => pickReview(rev);
+  if(rev.length && less.length){
+    // With interleaving off, lessons wait for the review queue to clear.
+    if(!S.settings.interleave) return pickRev();
+    return (Math.random()<0.3) ? sortNew(less)[0] : pickRev();
+  }
+  if(rev.length) return pickRev();
+  if(less.length) return sortNew(less)[0];
+
+  if(extraQuota > 0){
+    const early = Object.values(S.cards)
+      .filter(c=>!isBurned(c) && c.stage>0).sort((a,b)=>a.due-b.due);
+    if(early.length) return early[0];
+  }
+  return null;
+}
+/* Review order. Ties are broken at random rather than by due date, so a
+   session never drills the exact same sequence twice. */
+function pickReview(rev){
+  const o = S.settings.reviewOrder;
+  let pool = rev;
+  if(o === "stage" || o === "level"){
+    const key = o === "stage" ? (c=>c.stage) : (c=>(SUBJ[c.id]||{}).level||0);
+    let best = Infinity;
+    for(const c of rev){ const k = key(c); if(k < best) best = k; }
+    pool = rev.filter(c=>key(c) === best);
+  }
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function sortNew(arr){
+  const o = S.settings.order;
+  if(o==="random") return arr.slice().sort(()=>Math.random()-0.5);
+  if(o==="srs") return arr.slice().sort((a,b)=> (SUBJ[b.id]?.wkStage||0)-(SUBJ[a.id]?.wkStage||0) || (SUBJ[a.id]?.level||0)-(SUBJ[b.id]?.level||0));
+  return arr.slice().sort((a,b)=> (SUBJ[a.id]?.level||0)-(SUBJ[b.id]?.level||0)
+    || (isVocab(a.id)?1:0)-(isVocab(b.id)?1:0) || a.id-b.id);
+}
+function counts(){
+  const p = pools(), cap = caps();
+  const rawNew = p.lessK.length + p.lessV.length;
+  const rawRev = p.dueK.length + p.dueV.length;
+  return {
+    n: Math.min(p.lessK.length, cap.kNew) + Math.min(p.lessV.length, cap.vNew),
+    r: Math.min(p.dueK.length, cap.kRev) + Math.min(p.dueV.length, cap.vRev),
+    locked: p.locked, rawNew, rawRev,
+    vDue: p.dueV.length, vLess: p.lessV.length
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Review UI
+   ═══════════════════════════════════════════════════════════════ */
+const $ = s=>document.querySelector(s);
+const stage=$("#stage"), emptyDone=$("#empty-done"), emptyNo=$("#empty-nodata");
+
+function renderCounts(){
+  const c = counts();
+  const el = $("#counts");
+  // Header shows the true pending totals (WK-style), not the amount left
+  // under today's cap — the cap only limits what pickNext() will serve up.
+  $("#c-lessons").querySelector("b").textContent = c.rawNew;
+  $("#c-reviews").querySelector("b").textContent = c.rawRev;
+  // With nothing reviewable, say why: either the cap, or how long the wait is.
+  const nx = $("#c-next");
+  if(c.r > 0) nx.textContent = "";
+  else if(c.rawRev > 0) nx.textContent = "(cap reached)";
+  else {
+    // Newly-scheduled cards land on 5-minute bucket boundaries (see
+    // bucketDue), so the soonest upcoming due timestamp *is* the next
+    // bucket — count everything that shares it, not just the one card.
+    const t = now();
+    let soonest = Infinity, inBucket = 0;
+    for(const card of Object.values(S.cards)){
+      if(isBurned(card) || card.stage === 0 || card.due <= t) continue;
+      if(card.due < soonest){ soonest = card.due; inBucket = 1; }
+      else if(card.due === soonest){ inBucket++; }
+    }
+    nx.textContent = soonest === Infinity ? "" : "("+inBucket+" in "+fmtCountdown(soonest - t)+")";
+  }
+  const cb = $("#c-batch");
+  cb.querySelector("b").textContent = extraQuota;
+  cb.hidden = extraQuota <= 0;
+}
+function stateLabel(c){
+  if(c.stage===0) return "Lesson";
+  if(isBurned(c)) return "Burned";
+  return c.pstreak >= 1 ? stageName(c.stage)+" · partial" : stageName(c.stage);
+}
+const GRADE_NAMES = ["", "Incorrect", "Partial", "Correct"];
+function renderReceipt(){
+  const el = $("#receipt");
+  if(!lastAnswer){ el.hidden = true; return; }
+  const t = todayIdx();
+  const today = S.log.filter(e=>dayIndex(e.t)===t);
+  const right = today.filter(e=>e.g===3).length;
+  const c = lastAnswer.card;
+  const when = c.due === Infinity ? "burned" : "due in "+fmtIvl(Math.max(0, c.due-now()));
+  el.innerHTML = "";
+  const l1 = document.createElement("div");
+  const tick = document.createElement("span");
+  tick.className = "tick"+(lastAnswer.g===1 ? " miss" : "");
+  tick.textContent = lastAnswer.g===1 ? "✗" : "✓";
+  l1.appendChild(tick);
+  l1.appendChild(document.createTextNode("Recorded "));
+  const b = document.createElement("b"); b.textContent = lastAnswer.ch; l1.appendChild(b);
+  l1.appendChild(document.createTextNode(" "+lastAnswer.kw+" — "+GRADE_NAMES[lastAnswer.g]));
+  const l2 = document.createElement("div");
+  l2.textContent = "→ "+stageName(c.stage)+" · "+when;
+  const l3 = document.createElement("div");
+  l3.textContent = today.length+" answered today · "+right+" correct";
+  el.appendChild(l1); el.appendChild(l2); el.appendChild(l3);
+  el.hidden = false;
+}
+/* The answer log is capped at 12,000 entries when saved, so all-time
+   figures can't be derived from it — at 100 a day that's four months.
+   These aggregates are kept alongside it and never trimmed. */
+function tally(){
+  if(!S.meta.tally) rebuildTally();
+  return S.meta.tally;
+}
+function rebuildTally(){
+  const T = {answers:0, correct:0, partial:0, incorrect:0, lessons:0, days:{}};
+  for(const e of S.log){
+    T.answers++;
+    const d = dayIndex(e.t); T.days[d] = (T.days[d]||0) + 1;
+    if(e.g===3) T.correct++; else if(e.g===2) T.partial++; else T.incorrect++;
+    if(e.n) T.lessons++;
+  }
+  S.meta.tally = T;
+  if(!S.meta.firstDay && S.log.length) S.meta.firstDay = S.log[0].t;
+  return T;
+}
+function tallyAdd(g, wasNew, t){
+  const T = tally(), d = dayIndex(t);
+  T.answers++; T.days[d] = (T.days[d]||0) + 1;
+  if(g===3) T.correct++; else if(g===2) T.partial++; else T.incorrect++;
+  if(wasNew) T.lessons++;
+}
+function tallyRemove(e){
+  if(!e) return;
+  const T = tally(), d = dayIndex(e.t);
+  T.answers = Math.max(0, T.answers-1);
+  if(T.days[d] > 1) T.days[d]--; else delete T.days[d];
+  if(e.g===3) T.correct = Math.max(0,T.correct-1);
+  else if(e.g===2) T.partial = Math.max(0,T.partial-1);
+  else T.incorrect = Math.max(0,T.incorrect-1);
+  if(e.n) T.lessons = Math.max(0,T.lessons-1);
+}
+/* Current run ending today, or yesterday if today hasn't started yet. */
+function streaks(){
+  const days = Object.keys(tally().days).map(Number).sort((a,b)=>a-b);
+  if(!days.length) return {current:0, active:0};
+  const t = todayIdx();
+  const set = new Set(days);
+  let current = 0, from = set.has(t) ? t : (set.has(t-1) ? t-1 : null);
+  if(from !== null){ for(let d=from; set.has(d); d--) current++; }
+  return {current, active:days.length};
+}
+function paintPrompt(){
+  const s = SUBJ[current.id] || {};
+  const vocab = s.type === "vocabulary";
+  emptyDone.hidden=true; emptyNo.hidden=true; stage.hidden=false;
+  $("#m-level").textContent = "Level "+(s.level||"?")+" · "+(vocab ? "Vocabulary" : "Kanji");
+  $("#m-state").textContent = stateLabel(current);
+  // Vocabulary is prompted reading-first: English glosses collide far too
+  // often to identify a word on their own. The kana takes the big keyword
+  // slot; the gloss drops to a subtitle so it isn't the first thing you read.
+  $("#m-keyword").textContent = vocab ? (s.reading || s.primary || "(unknown)") : (s.primary || "(unknown)");
+  $("#m-keyword").classList.toggle("is-kana", vocab && !!s.reading);
+  $("#m-reading").textContent = vocab ? (s.primary || "") : "";
+  $("#m-reading").hidden = !vocab || !s.primary;
+  $("#m-alts").textContent = (S.settings.showAlts && s.alts && s.alts.length) ? "also: "+s.alts.join(", ") : "";
+  $("#masu-row").innerHTML = "";
+  $("#masu-caption").textContent = vocab ? "Write the word, then reveal" : "Write it, then reveal";
+  $("#pre-reveal").hidden=false; $("#post-reveal").hidden=true;
+  $("#m-mnemonic").hidden=true;
+  $("#btn-undo").hidden = undoStack.length===0;
+  revealed=false; pending=null; resetStrokes(); prefetchStrokes();
+}
+function showCard(){
+  renderCounts();
+  if(!Object.keys(S.cards).length){
+    resetStrokes();
+    stage.hidden=true; emptyDone.hidden=true; emptyNo.hidden=false; return;
+  }
+  current = pickNext();
+  if(!current){
+    resetStrokes();
+    stage.hidden=true; emptyNo.hidden=true; emptyDone.hidden=false;
+    renderReceipt();
+    $("#btn-undo2").hidden = undoStack.length===0;
+    const nxt = Object.values(S.cards).filter(x=>x.stage>0 && !isBurned(x)).sort((a,b)=>a.due-b.due)[0];
+    const c = counts();
+    const waiting = c.rawRev + c.rawNew;
+    $("#in-batch").value = S.settings.batchSize || 5;
+    $("#btn-batch").disabled = waiting === 0;
+    const lockedNote = c.locked ? "  "+c.locked+" vocabulary "+(c.locked===1?"word is":"words are")+" still waiting on their kanji to reach Guru." : "";
+    if(waiting > 0){
+      $("#done-title").textContent = "Daily limit reached";
+      $("#done-body").textContent = "You've hit today's cap. "+c.rawRev+" reviews and "+c.rawNew+" lessons are still waiting — ask for a batch below, or raise the limits in Setup."+lockedNote;
+      $("#done-when").textContent = "";
+    } else {
+      $("#done-title").textContent = "Nothing due right now";
+      $("#done-body").textContent = "Everything scheduled for today is done."+lockedNote;
+      $("#done-when").textContent = nxt ? "Next card in "+fmtIvl(Math.max(0,nxt.due-now())) : "";
+    }
+    return;
+  }
+  paintPrompt();
+}
+function reveal(){
+  if(!current || revealed) return;
+  revealed=true;
+  const s = SUBJ[current.id]||{};
+  $("#pre-reveal").hidden=true; $("#post-reveal").hidden=false;
+
+  const rd = $("#m-readings"); rd.innerHTML="";
+  if(S.settings.showReadings && s.readings){
+    for(const r of s.readings){
+      const d=document.createElement("div");
+      d.className="reading"+(r.primary?" primary":"");
+      d.innerHTML='<span class="lbl">'+(r.type==="onyomi"?"on":r.type==="kunyomi"?"kun":"nano")+'</span><span class="val"></span>';
+      d.querySelector(".val").textContent = r.r;
+      rd.appendChild(d);
+    }
+  }
+  $("#lnk-wk").href = s.url || ("https://www.wanikani.com/kanji/"+encodeURIComponent(s.ch||""));
+  $("#lnk-jisho").href = "https://jisho.org/search/"+encodeURIComponent(s.ch||"")+"%20%23kanji";
+  $("#btn-mnemonic").hidden = !s.mnemonic;
+  showCharacter();
+
+  // Project all three once, here — reusing them on answer keeps the button
+  // label honest and matches exactly what gets written.
+  pending = {}; pendingAt = now();
+  for(let g=1; g<=3; g++){
+    const p = project(current, g);
+    pending[g] = p;
+    $("#ivl"+g).textContent = fmtIvl(p.due === Infinity ? Infinity : Math.max(0, p.due - pendingAt));
+    $("#stg"+g).textContent = stageName(p.stage);
+  }
+  // A second partial in a row demotes, so the button says so.
+  const demoting = current.pstreak >= 1 && current.stage > 1;
+  $("#btn-partial").classList.toggle("demoting", demoting);
+  $("#grade-hint").innerHTML = demoting
+    ? "Second partial in a row — that one drops a stage."
+    : '<kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct';
+}
+function answer(g){
+  if(!current || !revealed) return;
+  const before = {...current};
+  const p = (pending && pending[g]) ? pending[g] : project(current, g);
+  if(pending && pending[g]) p.due += now() - pendingAt;  // re-anchor to answer time
+  const wasNew = current.stage === 0;
+  if(wasNew) p.intro = now();
+  const subj = SUBJ[current.id] || {};
+  lastAnswer = {ch:subj.ch||"", kw:subj.primary||"", g:g, card:p};
+  S.cards[current.id] = p;
+  tally();   // must exist before the push, or a rebuild would count this entry twice
+  const entry = {t:now(), id:current.id, g:g, n:wasNew?1:0, s:wasNew?0:1, st:before.stage, v:isVocab(current.id)?1:0};
+  S.log.push(entry);
+  tallyAdd(g, wasNew, entry.t);
+  if(!S.meta.firstDay) S.meta.firstDay = entry.t;
+  undoStack.push({card:before, logLen:S.log.length});
+  if(undoStack.length>40) undoStack.shift();
+  if(extraQuota > 0) extraQuota--;
+  save();
+  showCard();
+}
+function undo(){
+  const u = undoStack.pop();
+  if(!u) return;
+  lastAnswer = null;
+  $("#receipt").hidden = true;
+  S.cards[u.card.id] = u.card;
+  tallyRemove(S.log[u.logLen-1]);
+  S.log.splice(u.logLen-1, 1);
+  save();
+  showCard();
+  current = S.cards[u.card.id];
+  paintPrompt();
+  $("#btn-undo").hidden = undoStack.length===0;
+  renderCounts();
+}
+
+$("#btn-reveal").onclick = reveal;
+document.querySelectorAll(".grade").forEach(b=> b.onclick = ()=> answer(+b.dataset.grade));
+$("#btn-undo").onclick = undo;
+$("#btn-undo2").onclick = undo;
+$("#btn-batch").onclick = ()=>{
+  const n = clamp(parseInt($("#in-batch").value)||0, 1, 500);
+  S.settings.batchSize = n;        // remembered for next time
+  save();
+  extraQuota = n;
+  showCard();
+};
+$("#btn-replay").onclick = replayStrokes;
+$("#btn-mnemonic").onclick = ()=>{
+  const el=$("#m-mnemonic"), s=SUBJ[current.id]||{};
+  if(el.hidden){ el.innerHTML = s.mnemonic||""; el.hidden=false; } else el.hidden=true;
+};
+
+document.addEventListener("keydown", e=>{
+  if(e.target.matches("input,select,textarea")) return;
+  if($("#v-review").hidden) return;
+  if(e.key===" "||e.key==="Enter"){
+    e.preventDefault();
+    if(!revealed && current) reveal();
+    else if(revealed) answer(3);
+  }
+  else if(e.key>="1"&&e.key<="3"&&revealed){ e.preventDefault(); answer(+e.key); }
+  else if(e.key==="u"||e.key==="U"){ e.preventDefault(); undo(); }
+  else if((e.key==="m"||e.key==="M")&&revealed){ e.preventDefault(); $("#btn-mnemonic").click(); }
+  else if((e.key==="r"||e.key==="R")&&revealed){ e.preventDefault(); replayStrokes(); }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   Stroke order — paths come from KanjiVG (CC BY-SA 3.0), fetched
+   once per kanji and cached. Each stroke is drawn by animating its
+   dash offset, so the pen speed follows the real path length.
+   ═══════════════════════════════════════════════════════════════ */
+const SVGNS = "http://www.w3.org/2000/svg";
+const STROKE_SHARDS = 8;        // split the cache so no single key gets huge
+let strokeCache = {};          // char -> [d,…] or null when unavailable
+let animToken = 0, strokeTimer = null, strokeSaveTimer = null, currentStrokes = null;
+let bulkMode = false;
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+const raf = () => new Promise(r=>requestAnimationFrame(()=>r()));
+
+function shardOf(ch){ return ch.codePointAt(0) % STROKE_SHARDS; }
+async function loadStrokeCache(){
+  strokeCache = {};
+  for(let i=0; i<STROKE_SHARDS; i++)
+    Object.assign(strokeCache, (await DB.get(K_STROKE+":"+i)) || {});
+  const legacy = await DB.get(K_STROKE);   // single-key cache from an older build
+  if(legacy && typeof legacy === "object"){
+    Object.assign(strokeCache, legacy);
+    await DB.del(K_STROKE);
+    flushStrokes();
+  }
+}
+async function flushStrokes(){
+  const shards = Array.from({length:STROKE_SHARDS}, ()=>({}));
+  for(const ch in strokeCache){
+    if(strokeCache[ch]) shards[shardOf(ch)][ch] = strokeCache[ch];
+  }
+  let failed = 0;
+  for(let i=0; i<STROKE_SHARDS; i++){
+    if(!(await DB.set(K_STROKE+":"+i, shards[i]))) failed++;
+  }
+  return failed;
+}
+function persistStrokes(){
+  if(bulkMode) return;                       // bulk runs flush once at the end
+  clearTimeout(strokeSaveTimer);
+  strokeSaveTimer = setTimeout(flushStrokes, 2500);
+}
+function strokesCached(){
+  let n = 0;
+  for(const k in strokeCache) if(strokeCache[k]) n++;
+  return n;
+}
+
+/* Download paths for a whole deck at once, a few at a time. Gives up
+   early if nothing at all is getting through, so a blocked network
+   doesn't mean two thousand doomed requests. */
+async function cacheStrokes(chars, onProgress, retryFailed){
+  const todo = [];
+  for(const ch of chars){
+    if(!ch) continue;
+    if(ch in strokeCache && !(retryFailed && strokeCache[ch] === null)) continue;
+    if(retryFailed && strokeCache[ch] === null) delete strokeCache[ch];
+    if(!todo.includes(ch)) todo.push(ch);
+  }
+  if(!todo.length) return {ok:0, fail:0, total:0, stopped:false};
+
+  bulkMode = true;
+  let i = 0, done = 0, ok = 0, fail = 0, stopped = false;
+  async function worker(){
+    while(i < todo.length && !stopped){
+      const ch = todo[i++];
+      const ds = await getStrokes(ch);
+      done++; ds ? ok++ : fail++;
+      if(ok === 0 && fail >= 10) stopped = true;   // clearly blocked — bail out
+      if(onProgress && (done % 4 === 0 || done === todo.length)) onProgress(done, todo.length, ok, fail);
+    }
+  }
+  await Promise.all(Array.from({length:6}, worker));
+  bulkMode = false;
+  const shardFails = await flushStrokes();
+  return {ok, fail, total:todo.length, stopped, shardFails};
+}
+function deckChars(){
+  const out = [];
+  for(const id in S.cards){ const s = SUBJ[id]; if(s && s.ch) out.push(s.ch); }
+  return out;
+}
+function strokeUrls(ch){
+  const cp = ch.codePointAt(0).toString(16).padStart(5,"0");
+  return [
+    "https://cdn.jsdelivr.net/gh/KanjiVG/kanjivg@master/kanji/"+cp+".svg",
+    "https://cdn.statically.io/gh/KanjiVG/kanjivg/master/kanji/"+cp+".svg",
+    "https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/"+cp+".svg"
+  ];
+}
+let strokeFailReason = "";
+async function getStrokes(ch){
+  if(ch in strokeCache) return strokeCache[ch];
+  const errs = [];
+  for(const u of strokeUrls(ch)){
+    try{
+      const r = await fetch(u);
+      if(!r.ok){ errs.push(new URL(u).hostname+": HTTP "+r.status); continue; }
+      const doc = new DOMParser().parseFromString(await r.text(), "image/svg+xml");
+      const ds = Array.from(doc.querySelectorAll("path"))
+                      .map(p=>p.getAttribute("d"))
+                      .filter(Boolean)
+                      // KanjiVG carries 2 decimals on a 109-unit grid; one is
+                      // ~0.09% off and trims the cache by roughly a fifth.
+                      .map(d=>d.replace(/\d+\.\d+/g, m=>String(Math.round(parseFloat(m)*10)/10)));
+      if(ds.length){ strokeCache[ch] = ds; persistStrokes(); return ds; }
+      errs.push(new URL(u).hostname+": no paths in file");
+    }catch(e){ errs.push(new URL(u).hostname+": "+(e.message||"blocked")); }
+  }
+  strokeFailReason = errs.join(" · ");
+  strokeCache[ch] = null;
+  return null;
+}
+function resetStrokes(){
+  animToken++;
+  clearTimeout(strokeTimer);
+  currentStrokes = null;
+  $("#masu-row").innerHTML = "";
+  $("#masu-caption").textContent = "";
+  $("#stroke-note").hidden = true;
+  $("#btn-replay").hidden = true;
+}
+/* Every character the person has to write, in order. */
+function cardChars(id){
+  const s = SUBJ[id] || {};
+  return s.ch ? Array.from(s.ch) : [];
+}
+/* Warm the cache while they're still writing. */
+function prefetchStrokes(){
+  if(!current) return;
+  for(const ch of cardChars(current.id)){
+    if(!(ch in strokeCache)) getStrokes(ch).catch(()=>{});
+  }
+}
+function strokeFailNote(){
+  $("#stroke-note").innerHTML = "Stroke data blocked — this needs outside network access. Download the file and open it in your browser, or turn the animation off in Setup."
+    + (strokeFailReason ? '<br><span style="font-family:var(--mono);font-size:10.5px;opacity:.75">'+strokeFailReason+'</span>' : "");
+  $("#stroke-note").hidden = false;
+}
+/* Lay out one square per character, sized so a long word still fits. */
+function buildBoxes(chars){
+  const row = $("#masu-row");
+  row.innerHTML = "";
+  const n = Math.max(1, chars.length);
+  const size = "min(calc((100vw - 64px - "+((n-1)*10)+"px) / "+n+"), "+(n===1?300:n===2?200:n===3?150:120)+"px)";
+  const boxes = [];
+  for(const ch of chars){
+    const box = document.createElement("div");
+    box.className = "masu";
+    box.style.setProperty("--size", size);
+    for(const c of ["tl","tr","bl","br"]){
+      const k = document.createElement("span"); k.className = "corner "+c; box.appendChild(k);
+    }
+    const span = document.createElement("span");
+    span.className = "char"; span.textContent = ch; box.appendChild(span);
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("class","strokes");
+    svg.setAttribute("viewBox","0 0 109 109");
+    svg.setAttribute("aria-hidden","true");
+    box.appendChild(svg);
+    row.appendChild(box);
+    boxes.push({box, svg, ch});
+  }
+  return boxes;
+}
+function fillBox(b, ds){
+  if(!ds){ b.box.classList.add("showfont"); return null; }   // font fallback
+  b.svg.innerHTML = "";
+  const ghost = document.createElementNS(SVGNS,"g"); ghost.setAttribute("class","ghost");
+  const live  = document.createElementNS(SVGNS,"g"); live.setAttribute("class","live");
+  for(const d of ds){
+    const p = document.createElementNS(SVGNS,"path"); p.setAttribute("d", d); ghost.appendChild(p);
+  }
+  b.svg.appendChild(ghost); b.svg.appendChild(live);
+  b.box.classList.add("drawing");
+  return live;
+}
+function addLive(live, ds){
+  return ds.map(d=>{
+    const p = document.createElementNS(SVGNS,"path");
+    p.setAttribute("d", d); live.appendChild(p);
+    let len = 0; try{ len = p.getTotalLength(); }catch(e){}
+    if(!len || !isFinite(len)) len = 100;
+    return {p, len};
+  });
+}
+/* The reveal: finished glyphs at full weight, in their boxes. */
+async function showCharacter(){
+  resetStrokes();
+  const tok = animToken;
+  const chars = cardChars(current.id);
+  if(!chars.length) return;
+
+  const missing = chars.filter(c=>!(c in strokeCache));
+  if(missing.length){
+    $("#masu-caption").textContent = "…";
+    await Promise.all(missing.map(c=>getStrokes(c).catch(()=>null)));
+    if(tok !== animToken) return;
+  }
+  const all = chars.map(c=>Array.isArray(strokeCache[c]) ? strokeCache[c] : null);
+  const boxes = buildBoxes(chars);
+  boxes.forEach((b,i)=>{ const live = fillBox(b, all[i]); if(live) addLive(live, all[i]); });
+
+  const got = all.filter(Boolean);
+  if(!got.length){ strokeFailNote(); return; }
+  const total = got.reduce((a,ds)=>a+ds.length, 0);
+  $("#masu-caption").textContent = total+(all.some(x=>!x) ? "+ strokes" : " strokes");
+  currentStrokes = {chars, all, boxes};
+  $("#btn-replay").hidden = false;
+  if(!S.settings.strokeAnim) return;
+  strokeTimer = setTimeout(()=>{
+    if(tok === animToken) playStrokes(currentStrokes, tok);
+  }, Math.max(0, (S.settings.strokeDelay||0) * 1000));
+}
+function replayStrokes(){
+  if(!currentStrokes) return;
+  clearTimeout(strokeTimer);
+  const tok = ++animToken;
+  playStrokes(currentStrokes, tok);
+}
+/* One stroke, hand-driven per frame. */
+function drawOne(item, dur, tok){
+  const {p, len} = item;
+  return new Promise(resolve=>{
+    const t0 = (window.performance ? performance.now() : Date.now());
+    function step(){
+      if(tok !== animToken){ resolve(); return; }
+      const t = (window.performance ? performance.now() : Date.now());
+      const k = dur > 0 ? Math.min(1, (t - t0) / dur) : 1;
+      p.style.strokeDashoffset = String(len * (1 - k));
+      if(k < 1) requestAnimationFrame(step); else resolve();
+    }
+    step();
+  });
+}
+/* Redraw every box in reading order, one stroke at a time. */
+async function playStrokes(cs, tok){
+  if(!window.requestAnimationFrame) return;
+  const {all, boxes} = cs;
+  const speed = S.settings.strokeSpeed || 1;
+  const prepared = boxes.map((b,i)=>{
+    if(!all[i]) return null;
+    const live = fillBox(b, all[i]);
+    const paths = addLive(live, all[i]);
+    for(const {p, len} of paths){
+      p.style.strokeDasharray = len+" "+len;
+      p.style.strokeDashoffset = String(len);
+    }
+    return paths;
+  });
+  await raf();
+  for(let i=0; i<boxes.length; i++){
+    if(tok !== animToken) return;
+    const paths = prepared[i];
+    if(!paths){ continue; }
+    boxes[i].box.classList.add("active");
+    for(let j=0; j<paths.length; j++){
+      if(tok !== animToken){ boxes[i].box.classList.remove("active"); return; }
+      $("#masu-caption").textContent = boxes.length > 1
+        ? (i+1)+" of "+boxes.length+" · stroke "+(j+1)+" / "+paths.length
+        : (j+1)+" / "+paths.length;
+      await drawOne(paths[j], clamp(paths[j].len*14, 260, 1000)/speed, tok);
+      if(tok !== animToken){ boxes[i].box.classList.remove("active"); return; }
+      await sleep(140/speed);
+    }
+    boxes[i].box.classList.remove("active");
+  }
+  if(tok === animToken){
+    const total = all.filter(Boolean).reduce((a,ds)=>a+ds.length,0);
+    $("#masu-caption").textContent = total+" strokes";
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   WaniKani sync
+   ═══════════════════════════════════════════════════════════════ */
+const WK = "https://api.wanikani.com/v2/";
+async function wkGet(url, token){
+  let res;
+  try{
+    res = await fetch(url, {headers:{ "Authorization":"Bearer "+token, "Wanikani-Revision":"20170710" }});
+  }catch(err){
+    throw new Error("Couldn't reach WaniKani. If you're running this inside a chat window, the sandbox may be blocking outside requests — download the file and open it in your browser instead.");
+  }
+  if(res.status===401) throw new Error("WaniKani rejected the token (401). Check you pasted the whole thing, with no spaces.");
+  if(res.status===403) throw new Error("That token doesn't have permission to read this (403).");
+  if(res.status===429) throw new Error("WaniKani is rate-limiting (429). Wait a minute and sync again.");
+  if(!res.ok) throw new Error("WaniKani returned "+res.status+".");
+  return res.json();
+}
+async function wkAll(url, token, onProg){
+  let out=[], next=url;
+  while(next){
+    const j = await wkGet(next, token);
+    out = out.concat(j.data||[]);
+    if(onProg) onProg(out.length, j.total_count||0);
+    next = j.pages && j.pages.next_url;
+  }
+  return out;
+}
+function stripTags(html){
+  if(!html) return "";
+  return String(html)
+    .replace(/<radical>(.*?)<\/radical>/g,'<span class="k">$1</span>')
+    .replace(/<kanji>(.*?)<\/kanji>/g,'<span class="k">$1</span>')
+    .replace(/<vocabulary>(.*?)<\/vocabulary>/g,'<span class="k">$1</span>')
+    .replace(/<reading>(.*?)<\/reading>/g,'<span class="r">$1</span>')
+    .replace(/<meaning>(.*?)<\/meaning>/g,'<b>$1</b>')
+    .replace(/<ja>(.*?)<\/ja>/g,'$1')
+    .replace(/<(?!\/?(span|b)\b)[^>]*>/g,"");
+}
+function setStatus(el, msg, isErr){
+  el.hidden=false; el.textContent=msg; el.classList.toggle("err", !!isErr);
+}
+const HAS_KANJI = /[\u4e00-\u9fff\u3400-\u4dbf]/;
+
+function packSubject(d, type){
+  const ms = d.meanings || [];
+  const prim = (ms.find(m=>m.primary)||ms[0]||{}).meaning || "";
+  const rds = (d.readings||[]).filter(r=>r.accepted_answer!==false);
+  const o = {
+    type, ch:d.characters, level:d.level, primary:prim,
+    alts: ms.filter(m=>m.meaning!==prim && m.accepted_answer!==false).map(m=>m.meaning),
+    readings: rds.map(r=>({r:r.reading, type:r.type||"", primary:!!r.primary})),
+    url: d.document_url
+  };
+  if(type === "kanji") o.mnemonic = stripTags(d.meaning_mnemonic);
+  else {
+    // The prompt reading — what you'd be given in a 書き取り exercise.
+    o.reading = (rds.find(r=>r.primary) || rds[0] || {}).reading || "";
+    o.components = d.component_subject_ids || [];
+  }
+  return o;
+}
+
+async function sync(){
+  const st = $("#sync-status"), btn = $("#btn-sync");
+  const token = $("#in-token").value.trim();
+  if(!token){ setStatus(st,"Enter your personal access token first.",true); return; }
+  const wantVocab = !!S.settings.vocab;
+  btn.disabled=true;
+  try{
+    setStatus(st,"Checking token…");
+    const user = await wkGet(WK+"user", token);
+    const uname = user.data.username, ulevel = user.data.level;
+    S.settings.token = token;
+    const who = "Signed in as "+uname+" (level "+ulevel+").\n";
+
+    // started=true means the lesson is done — Apprentice I or beyond.
+    // kana_vocabulary is deliberately not requested: nothing to write.
+    const types = wantVocab ? "kanji,vocabulary" : "kanji";
+    setStatus(st, who+"Loading items you've started…");
+    const asg = await wkAll(WK+"assignments?subject_types="+types+"&started=true", token,
+      (n,total)=> setStatus(st, who+"Loading assignments… "+n+(total?" / "+total:"")));
+
+    const stageById = {}, wantIds = [];
+    for(const a of asg){
+      if((a.data.srs_stage||0) < 1) continue;          // belt and braces
+      stageById[a.data.subject_id] = a.data.srs_stage;
+      wantIds.push(a.data.subject_id);
+    }
+    if(!wantIds.length) throw new Error("No started kanji found — do some WaniKani lessons first.");
+
+    // Subject details, fetched per type and cached.
+    for(const t of (wantVocab ? ["kanji","vocabulary"] : ["kanji"])){
+      const need = wantIds.some(id=>!SUBJ[id] && (t==="kanji" ? true : true));
+      const haveAllOfType = wantIds.every(id=>SUBJ[id]);
+      if(haveAllOfType) continue;
+      setStatus(st, who+wantIds.length+" started items.\nDownloading "+t+" details…");
+      const subs = await wkAll(WK+"subjects?types="+t, token,
+        (n,total)=> setStatus(st, who+wantIds.length+" started items.\nDownloading "+t+" details… "+n+(total?" / "+total:"")));
+      for(const sub of subs){
+        if(t === "vocabulary" && !HAS_KANJI.test(sub.data.characters||"")) continue;
+        SUBJ[sub.id] = packSubject(sub.data, t);
+      }
+      await DB.set(K_SUBJ, SUBJ);
+    }
+
+    const ids = wantIds.filter(id=>SUBJ[id]);          // drops kana-only vocab
+    for(const id of ids) SUBJ[id].wkStage = stageById[id];
+    await DB.set(K_SUBJ, SUBJ);
+
+    let addedK=0, addedV=0;
+    for(const id of ids){
+      if(!S.cards[id]){ S.cards[id]=newCard(id); (SUBJ[id].type==="vocabulary"?addedV++:addedK++); }
+    }
+    const nK = ids.filter(id=>SUBJ[id].type!=="vocabulary").length;
+    const nV = ids.length - nK;
+    S.meta = {...S.meta, username:uname, level:ulevel, lastSync:now(), demo:false};
+    await saveNow();
+    renderCounts(); renderDataSummary();
+
+    let head = "Synced.\n"+nK+" started kanji"+(addedK?" · "+addedK+" new":"");
+    if(wantVocab) head += "\n"+nV+" vocabulary"+(addedV?" · "+addedV+" new":"")+" — released as their kanji reach Guru here";
+    head += "\n";
+
+    const chars = [];
+    for(const id of ids) for(const c of Array.from(SUBJ[id].ch||"")) if(!chars.includes(c)) chars.push(c);
+    setStatus(st, head+"\nDownloading stroke order data…");
+    const r = await cacheStrokes(chars, (d,t2,o,f)=>{
+      setStatus(st, head+"\nDownloading stroke order data… "+d+" / "+t2+(f?"  ("+f+" unavailable)":""));
+    });
+    let tail;
+    if(r.total === 0) tail = "\nStroke data already cached for every character.";
+    else if(r.stopped) tail = "\nStroke data unavailable — requests are being blocked here. Reviews still work; the animation won't.";
+    else tail = "\nStroke data cached for "+r.ok+" characters"+(r.fail?", "+r.fail+" had no KanjiVG entry":"")+"."
+              + (r.shardFails ? "\nSome of it couldn't be saved — storage is full, so those will re-download when needed." : "");
+    setStatus(st, head+tail+"\nSaved "+new Date().toLocaleString()+".", r.stopped);
+    renderDataSummary();
+  }catch(err){
+    setStatus(st, err.message||String(err), true);
+  }finally{ btn.disabled=false; }
+}
+$("#btn-sync").onclick = sync;
+
+/* ═══════════════════════════════════════════════════════════════
+   Demo deck (approximate WaniKani-style keywords, levels 1–3)
+   ═══════════════════════════════════════════════════════════════ */
+const DEMO = [
+ ["一","one",1,"イチ"],["二","two",1,"ニ"],["三","three",1,"サン"],["四","four",1,"シ"],
+ ["五","five",1,"ゴ"],["六","six",1,"ロク"],["七","seven",1,"シチ"],["八","eight",1,"ハチ"],
+ ["九","nine",1,"キュウ"],["十","ten",1,"ジュウ"],["人","person",1,"ニン"],["大","big",1,"ダイ"],
+ ["山","mountain",1,"サン"],["川","river",1,"セン"],["工","construction",1,"コウ"],["上","above",1,"ジョウ"],
+ ["下","below",1,"カ"],["力","power",1,"リョク"],["口","mouth",1,"コウ"],["土","dirt",1,"ド"],
+ ["千","thousand",1,"セン"],["女","woman",2,"ジョ"],["子","child",2,"シ"],["手","hand",2,"シュ"],
+ ["日","sun",2,"ニチ"],["月","moon",2,"ゲツ"],["田","rice paddy",2,"デン"],["目","eye",2,"モク"],
+ ["中","middle",2,"チュウ"],["王","king",2,"オウ"],["出","exit",2,"シュツ"],["正","correct",2,"セイ"],
+ ["生","life",2,"セイ"],["石","stone",2,"セキ"],["立","stand",2,"リツ"],["白","white",2,"ハク"],
+ ["天","heaven",2,"テン"],["見","see",3,"ケン"],["気","energy",3,"キ"],["本","book",3,"ホン"]
+];
+/* A few words for the demo, to show the vocabulary flow. */
+const DEMO_VOCAB = [
+ ["一人","ひとり","alone",2],["人口","じんこう","population",2],["大人","おとな","adult",2],
+ ["大川","おおかわ","large river",2],["山口","やまぐち","mountain pass",2],["女子","じょし","girl",3],
+ ["日本","にほん","japan",3],["中立","ちゅうりつ","neutrality",3],["白目","しろめ","whites of eyes",3],
+ ["下手","へた","unskillful",3],["中止","ちゅうし","cancellation",3],["王子","おうじ","prince",3]
+];
+async function loadDemo(navigate){
+  for(let i=0;i<DEMO.length;i++){
+    const [ch,kw,lv,on] = DEMO[i], id = 900000+i;
+    SUBJ[id] = {type:"kanji", ch, primary:kw, level:lv, alts:[], readings:[{r:on,type:"onyomi",primary:true}],
+                url:"https://www.wanikani.com/kanji/"+encodeURIComponent(ch), mnemonic:"", wkStage:0};
+    if(!S.cards[id]) S.cards[id]=newCard(id);
+  }
+  const idOf = c => 900000 + DEMO.findIndex(d=>d[0]===c);
+  DEMO_VOCAB.forEach(([word,kana,kw,lv],i)=>{
+    const id = 950000+i;
+    SUBJ[id] = {type:"vocabulary", ch:word, reading:kana, primary:kw, level:lv, alts:[],
+                readings:[{r:kana,type:"",primary:true}],
+                components:Array.from(word).filter(c=>DEMO.some(d=>d[0]===c)).map(idOf),
+                url:"https://www.wanikani.com/vocabulary/"+encodeURIComponent(word)};
+    if(!S.cards[id]) S.cards[id]=newCard(id);
+  });
+  S.meta = {...S.meta, demo:true, lastSync:now()};
+  await DB.set(K_SUBJ, SUBJ); await saveNow();
+  renderDataSummary();
+  if(navigate) go("review");
+  const st = $("#sync-status");
+  setStatus(st, "Demo deck loaded — 40 kanji + 12 words.\nDownloading stroke order data…");
+  const demoChars = DEMO.map(d=>d[0]).concat(DEMO_VOCAB.flatMap(v=>Array.from(v[0])));
+  const r = await cacheStrokes(demoChars, (d,t)=>{
+    setStatus(st, "Demo deck loaded — 40 kanji + 12 words.\nDownloading stroke order data… "+d+" / "+t);
+  });
+  setStatus(st, "Demo deck loaded — 40 kanji + 12 words (words unlock at Guru).\n" + (
+    r.stopped ? "Stroke data is being blocked here — reviews work, the animation won't."
+    : r.total === 0 ? "Stroke data already cached."
+    : "Stroke data cached for "+r.ok+" kanji."), r.stopped);
+  renderDataSummary();
+}
+$("#btn-demo").onclick = ()=> loadDemo(true);
+$("#btn-demo2").onclick = ()=> loadDemo(false);
+
+/* ═══════════════════════════════════════════════════════════════
+   Settings wiring
+   ═══════════════════════════════════════════════════════════════ */
+function applySettings(){
+  document.documentElement.dataset.theme = S.settings.dark ? "dark" : "light";
+}
+function fillSettings(){
+  $("#in-token").value = S.settings.token||"";
+  $("#in-new").value = S.settings.newPerDay;
+  $("#in-max").value = S.settings.maxReviews;
+  $("#in-order").value = S.settings.order;
+  $("#in-revorder").value = S.settings.reviewOrder;
+  $("#in-burn").checked = S.settings.burn;
+  $("#in-vocab").checked = S.settings.vocab;
+  $("#in-interleave").checked = S.settings.interleave;
+  $("#in-vocabstart").value = S.settings.vocabStart;
+  $("#in-vnew").value = S.settings.vocabNewPerDay;
+  $("#in-vmax").value = S.settings.vocabMaxReviews;
+  $("#in-stroke").checked = S.settings.strokeAnim;
+  $("#in-strokedelay").value = S.settings.strokeDelay;
+  $("#in-strokespeed").value = S.settings.strokeSpeed;
+  $("#speedval").textContent = fmtSpeed(S.settings.strokeSpeed);
+  $("#in-alts").checked = S.settings.showAlts;
+  $("#in-readings").checked = S.settings.showReadings;
+  $("#in-dark").checked = S.settings.dark;
+  // Token/gist id are per-device credentials in localStorage, not S —
+  // fillSettings() only re-reads them here so re-rendering Setup (e.g.
+  // after a pull) doesn't clobber what the person just typed.
+  const sc = syncConfig();
+  $("#in-sync-token").value = sc.token;
+  $("#in-sync-gist").value = sc.gistId;
+}
+function bind(sel, key, transform){
+  const el=$(sel);
+  const ev = el.type==="checkbox"||el.tagName==="SELECT" ? "change" : "input";
+  el.addEventListener(ev, ()=>{
+    S.settings[key] = el.type==="checkbox" ? el.checked : (transform?transform(el.value):el.value);
+    applySettings(); save(); renderCounts();
+  });
+}
+bind("#in-new","newPerDay",v=>clamp(parseInt(v)||0,0,200));
+bind("#in-max","maxReviews",v=>clamp(parseInt(v)||0,0,999));
+bind("#in-order","order");
+bind("#in-revorder","reviewOrder");
+bind("#in-burn","burn");
+bind("#in-vocab","vocab");
+bind("#in-interleave","interleave");
+bind("#in-vocabstart","vocabStart", v=>clamp(parseInt(v)||1, 1, APPRENTICE_TOP));
+bind("#in-vnew","vocabNewPerDay", v=>clamp(parseInt(v)||0, 0, 200));
+bind("#in-vmax","vocabMaxReviews", v=>clamp(parseInt(v)||0, 0, 999));
+bind("#in-stroke","strokeAnim");
+bind("#in-strokedelay","strokeDelay", v=>clamp(parseFloat(v)||0, 0, 15));
+bind("#in-strokespeed","strokeSpeed", v=>clamp(parseFloat(v)||1, 0.25, 10));
+$("#in-strokespeed").addEventListener("input", ()=>{
+  $("#speedval").textContent = fmtSpeed($("#in-strokespeed").value);
+});
+/* Native confirm() is silently ignored inside a sandboxed iframe, so
+   destructive actions arm themselves on the first click instead. */
+function armConfirm(btn, promptText, run){
+  const orig = btn.textContent;
+  let armed = false, timer = null;
+  const disarm = ()=>{ armed=false; clearTimeout(timer); btn.textContent=orig; btn.classList.remove("armed"); };
+  btn.onclick = async ()=>{
+    if(!armed){
+      armed = true;
+      btn.textContent = (typeof promptText==="function" ? promptText() : promptText);
+      btn.classList.add("armed");
+      timer = setTimeout(disarm, 6000);
+      return;
+    }
+    disarm();
+    await run();
+  };
+}
+
+armConfirm($("#btn-resurrect"), "Click again to resurrect", async ()=>{
+  const burned = Object.values(S.cards).filter(isBurned);
+  if(!burned.length){ setStatus($("#data-status"),"Nothing is burned yet."); return; }
+  for(const c of burned){ c.stage = 1; c.pstreak = 0; c.due = now(); }
+  const ok = await saveNow();
+  renderCounts(); renderDataSummary();
+  setStatus($("#data-status"), ok
+    ? burned.length+" kanji resurrected to Apprentice I. They're due now."
+    : "Couldn't write to storage — reload and try again.", !ok);
+});
+bind("#in-alts","showAlts");
+bind("#in-readings","showReadings");
+bind("#in-dark","dark");
+$("#in-token").addEventListener("input", ()=>{ S.settings.token=$("#in-token").value.trim(); save(); });
+
+function fmtSpeed(v){ return String(Number(v)).replace(/\.00?$/,"")+"×"; }
+function renderDataSummary(){
+  const n = Object.keys(S.cards).length;
+  const bits = [];
+  bits.push(n+" kanji in your deck");
+  bits.push(S.log.length+" answers recorded");
+  bits.push(strokesCached()+" with stroke data");
+  if(S.meta.username) bits.push("account "+S.meta.username);
+  if(S.meta.demo) bits.push("demo deck");
+  if(S.meta.lastSync) bits.push("last sync "+new Date(S.meta.lastSync).toLocaleDateString());
+  bits.push(hasWS ? "saved to this chat" : "saved in this browser");
+  $("#data-summary").textContent = bits.join(" · ")+".";
+}
+$("#btn-fetchStrokes").onclick = async ()=>{
+  const st = $("#stroke-status"), btn = $("#btn-fetchStrokes");
+  const chars = deckChars();
+  if(!chars.length){ setStatus(st, "No kanji in your deck yet — sync or load the demo deck first."); return; }
+  btn.disabled = true;
+  setStatus(st, "Checking "+chars.length+" kanji…");
+  const r = await cacheStrokes(chars, (d,t,o,f)=>{
+    setStatus(st, "Downloading… "+d+" / "+t+"   cached "+o+(f?", "+f+" unavailable":""));
+  }, true);   // retry anything that failed before
+  setStatus(st, r.total === 0
+    ? "Already have stroke data for all "+chars.length+" kanji in your deck."
+    : r.stopped
+      ? "Requests are being blocked here — nothing could be downloaded."
+      : "Done. "+r.ok+" cached"+(r.fail?", "+r.fail+" have no KanjiVG entry":"")+".\n"
+        +strokesCached()+" kanji cached in total."
+        +(r.shardFails ? "\nSome couldn't be saved — storage is full." : ""),
+    r.stopped);
+  renderDataSummary();
+  btn.disabled = false;
+};
+
+$("#btn-testStroke").onclick = async ()=>{
+  const st = $("#stroke-status"), btn = $("#btn-testStroke");
+  btn.disabled = true;
+  setStatus(st, "Testing each mirror with 一 …");
+  const lines = [];
+  let anyOk = false;
+  for(const u of strokeUrls("一")){
+    const host = new URL(u).hostname;
+    const t0 = Date.now();
+    try{
+      const r = await fetch(u);
+      const ms = Date.now()-t0;
+      if(r.ok){
+        const txt = await r.text();
+        const n = (txt.match(/<path/g)||[]).length;
+        lines.push("OK    "+host+" — "+n+" paths, "+ms+" ms");
+        anyOk = true;
+      } else lines.push("FAIL  "+host+" — HTTP "+r.status);
+    }catch(e){
+      lines.push("FAIL  "+host+" — "+(e.message||"request blocked"));
+    }
+  }
+  lines.push("");
+  lines.push(anyOk
+    ? "Stroke order will work here."
+    : "All mirrors blocked. This copy is running somewhere that forbids outside requests — the in-chat preview does. Download the file and open it in your browser; the WaniKani sync needs the same access.");
+  setStatus(st, lines.join("\n"), !anyOk);
+  btn.disabled = false;
+};
+
+$("#btn-export").onclick = ()=>{
+  const blob = new Blob([JSON.stringify({v:1, data:S, subjects:SUBJ},null,1)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="kanji-writing-practice-"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  setStatus($("#data-status"),"Backup downloaded.");
+};
+$("#btn-import").onclick = ()=> $("#file-import").click();
+$("#file-import").onchange = async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const j = JSON.parse(await f.text());
+    if(!j.data||!j.subjects) throw new Error("bad file");
+    S = {...S, ...j.data}; S.settings={...DEFAULT_SETTINGS,...S.settings};
+    SUBJ = j.subjects;
+    await DB.set(K_SUBJ, SUBJ); await saveNow();
+    fillSettings(); applySettings(); renderDataSummary(); renderCounts();
+    setStatus($("#data-status"),"Backup restored. "+Object.keys(S.cards).length+" kanji loaded.");
+  }catch(err){ setStatus($("#data-status"),"That file couldn't be read as a backup.",true); }
+  e.target.value="";
+};
+armConfirm($("#btn-reset"), "Click again to erase everything", async ()=>{
+  S = {settings:{...DEFAULT_SETTINGS}, cards:{}, log:[], meta:{}};
+  SUBJ = {}; undoStack = []; strokeCache = {};
+  current = null; pending = null; extraQuota = 0; revealed = false;
+  clearTimeout(saveTimer); clearTimeout(strokeSaveTimer); resetStrokes();
+  await DB.del(K_SUBJ); await DB.del(K_STROKE);
+  for(let i=0;i<STROKE_SHARDS;i++) await DB.del(K_STROKE+":"+i);
+  const ok = await saveNow();
+  // Read it back — a silent storage failure would otherwise look like success.
+  const check = await DB.get(K_DATA);
+  const empty = !check || !check.cards || Object.keys(check.cards).length === 0;
+  fillSettings(); applySettings(); renderDataSummary(); renderCounts(); showCard();
+  setStatus($("#data-status"), (ok && empty)
+    ? "Everything erased — cards, answer history, and saved token."
+    : "Couldn't clear storage. Nothing was erased; reload the page and try again.", !(ok && empty));
+});
+
+$("#in-sync-token").addEventListener("input", ()=> setSyncToken($("#in-sync-token").value.trim()));
+$("#in-sync-gist").addEventListener("input", ()=> setSyncGist($("#in-sync-gist").value.trim()));
+$("#btn-sync-now").onclick = async ()=>{
+  const btn = $("#btn-sync-now");
+  btn.disabled = true;
+  setStatus($("#gh-sync-status"), "Syncing…");
+  try{
+    const msg = await runSync();
+    setStatus($("#gh-sync-status"), msg);
+    $("#in-sync-gist").value = syncConfig().gistId;
+  }catch(err){
+    setStatus($("#gh-sync-status"), err.message || "Sync failed.", true);
+  }
+  btn.disabled = false;
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   Stats
+   ═══════════════════════════════════════════════════════════════ */
+function tile(num, sub, small){
+  return '<div class="tile"><div class="t-num">'+num+(small?' <small>'+small+'</small>':'')+'</div><div class="t-sub">'+sub+'</div></div>';
+}
+function renderStats(){
+  const t = todayIdx(), tl = S.log.filter(e=>dayIndex(e.t)===t);
+  const correct = tl.filter(e=>e.g===3).length;
+  const partial = tl.filter(e=>e.g===2).length;
+  const pPct = tl.length ? Math.round(partial/tl.length*100) : 0;
+  const acc = tl.length ? Math.round(correct/tl.length*100) : 0;
+
+  // streak
+  const sk = streaks();
+  const streak = sk.current;
+
+  $("#tiles-today").innerHTML =
+    tile(tl.length,"Answers") +
+    tile(acc,"Correct","%") +
+    tile(pPct,"Partial","%") +
+    tile(tl.filter(e=>e.n).length,"Lessons") +
+    tile(streak,"Current streak");
+
+  const T = tally();
+  const allAcc = T.answers ? Math.round(T.correct/T.answers*100) : 0;
+  const perDay = sk.active ? (T.answers/sk.active) : 0;
+  $("#tiles-alltime").innerHTML =
+    tile(T.answers.toLocaleString(),"Answers") +
+    tile(allAcc,"Correct","%") +
+    tile(T.answers ? Math.round(T.partial/T.answers*100) : 0,"Partial","%") +
+    tile(T.lessons.toLocaleString(),"Lessons") +
+    tile(sk.active,"Days practiced");
+  $("#alltime-note").textContent = T.answers
+    ? T.partial.toLocaleString()+" partial · "+T.incorrect.toLocaleString()+" missed · "+perDay.toFixed(1)+" answers on an average practice day"
+    + (S.meta.firstDay ? " · since "+new Date(S.meta.firstDay).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : "")
+    : "Nothing recorded yet.";
+
+  const list = Object.values(S.cards);
+
+  // forecast — next 24 hours, then 14 days
+  const nowT = now();
+  // Bar 0 is what's actually reviewable this second. Everything else is
+  // bucketed by when it unlocks, rounded up — an item due in 40 minutes
+  // belongs under the next hour mark, not under "now". Each bucket is
+  // further split by SRS stage group (same taxonomy as the Items page)
+  // so the bars stack, plus a kanji/vocab tally on the side for the
+  // tooltip's second line.
+  const FORECAST_GROUPS = GROUPS.filter(([k])=> k!=="lesson" && k!=="burned");
+  const emptyBucket = () => Object.assign(Object.fromEntries(FORECAST_GROUPS.map(([k])=>[k,0])), {k:0, v:0});
+  const hours = Array.from({length:25}, emptyBucket);
+  const f = Array.from({length:15}, emptyBucket);
+  for(const c of list){
+    if(c.stage===0 || isBurned(c)) continue;
+    const g = stageGroup(c.stage);
+    const kind = isVocab(c.id) ? "v" : "k";
+    const diff = c.due - nowT;
+    if(diff <= 0){ hours[0][g]++; hours[0][kind]++; }
+    else { const hh = Math.ceil(diff/36e5); if(hh <= 24){ hours[hh][g]++; hours[hh][kind]++; } }
+    const d = dayIndex(c.due) - t;
+    if(d<=0){ f[0][g]++; f[0][kind]++; } else if(d<=14){ f[d][g]++; f[d][kind]++; }
+  }
+  const sum = b => FORECAST_GROUPS.reduce((s,[k])=>s+b[k], 0);
+  const clock = ms => new Date(ms).toLocaleTimeString(undefined,{hour:"numeric"});
+  const datel = ms => new Date(ms).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  const bar = (b, i, max, label, withKV) => {
+    const tot = sum(b);
+    const segs = FORECAST_GROUPS.map(([k,,col])=>
+      b[k] ? '<i style="flex:'+b[k]+' 0 0;background:'+col+'"></i>' : "").join("");
+    const attrs = FORECAST_GROUPS.map(([k])=>' data-'+k+'="'+b[k]+'"').join("")
+      + (withKV ? ' data-k="'+b.k+'" data-v="'+b.v+'"' : "");
+    return '<div class="bar" data-today="'+(i===0?1:0)+'" style="height:'+(tot/max*100)+'%"'
+      + ' data-label="'+label+'"'+attrs+'>'+segs+'</div>';
+  };
+  const hmax = Math.max(1,...hours.map(sum));
+  $("#hourly").innerHTML = hours.map((b,i)=>
+    bar(b, i, hmax, i===0 ? "Available now" : "Unlocks by "+clock(nowT+i*36e5), true)).join("");
+  const fmax = Math.max(1,...f.map(sum));
+  $("#forecast").innerHTML = f.map((b,i)=>
+    bar(b, i, fmax, i===0 ? "Due now" : datel(nowT+i*DAY), true)).join("");
+  // Axis labels as real clock times and dates, not offsets.
+  const ha = $("#axis-hourly").querySelectorAll ? $("#axis-hourly").querySelectorAll("span") : [];
+  if(ha.length === 4){
+    ha[1].textContent = clock(nowT + 8*36e5);
+    ha[2].textContent = clock(nowT + 16*36e5);
+    ha[3].textContent = clock(nowT + 24*36e5);
+  }
+  const da = $("#axis-daily").querySelectorAll ? $("#axis-daily").querySelectorAll("span") : [];
+  if(da.length === 4){
+    da[1].textContent = datel(nowT + 5*DAY);
+    da[2].textContent = datel(nowT + 9*DAY);
+    da[3].textContent = datel(nowT + 14*DAY);
+  }
+
+  // heatmap, last 3 weeks
+  const per = tally().days;
+  const cells=[]; const start = t - (2*7 + new Date().getDay());
+  const vals = Object.values(per); const hi = Math.max(10,...vals);
+  for(let d=start; d<=t; d++){
+    const v = per[d]||0;
+    const l = v===0?0 : v<hi*0.25?1 : v<hi*0.5?2 : v<hi*0.8?3 : 4;
+    const label = datel(d*DAY + SR.dayCutoffHour*36e5)+' · '+v+' answer'+(v===1?'':'s');
+    cells.push('<i data-l="'+l+'" data-tip="'+esc(label)+'"></i>');
+  }
+  $("#heat").innerHTML = cells.join("");
+  $("#heat-from").textContent = new Date((start*DAY)+SR.dayCutoffHour*36e5).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+
+  // leeches
+  const leeches = list.filter(c=>c.lapses>0 || c.partials>1)
+    .sort((a,b)=> (b.lapses*2+b.partials)-(a.lapses*2+a.partials)).slice(0,12);
+  $("#leech").innerHTML = leeches.length ? leeches.map(c=>{
+    const s=SUBJ[c.id]||{};
+    const bits = [];
+    if(c.lapses) bits.push(c.lapses+" × missed");
+    if(c.partials) bits.push(c.partials+" × partial");
+    return '<tr><td class="ch">'+(s.ch||"")+'</td><td>'+(s.primary||"")+'</td><td class="lv">'+stageName(c.stage)+'</td><td class="num">'+bits.join(" · ")+'</td></tr>';
+  }).join("") : "";
+  $("#leech-note").textContent = leeches.length
+    ? "Kanji you've forgotten the most times. Worth a dedicated page in your notebook."
+    : "Nothing here yet. Kanji you forget more than once will collect here.";
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Chart tooltips
+   ═══════════════════════════════════════════════════════════════ */
+function hideChartTip(){ $("#charttip").hidden = true; }
+function showChartTip(bar){
+  const tip = $("#charttip");
+  const groups = GROUPS.filter(([k])=> k!=="lesson" && k!=="burned");
+  const counts = groups.map(([k,label,col])=>({label,col,n:+bar.dataset[k]||0})).filter(x=>x.n>0);
+  const tot = counts.reduce((s,x)=>s+x.n, 0);
+  let html = '<div class="tt-when">'+bar.dataset.label+'</div>';
+  if(!tot){
+    html += '<div class="tt-tot">nothing</div>';
+  } else {
+    html += '<div class="tt-tot">'+tot+' item'+(tot===1?"":"s")+'</div>';
+    const parts = counts.map(x=>'<span><i style="background:'+x.col+'"></i>'+x.n+' '+x.label+'</span>');
+    html += '<div class="tt-split">'+parts.join("&nbsp;&nbsp; ")+'</div>';
+    // Both charts' bars carry a kanji/vocab tally alongside the stage
+    // breakdown above.
+    if(bar.dataset.k !== undefined){
+      const kk = +bar.dataset.k || 0, vv = +bar.dataset.v || 0;
+      const kv = [];
+      if(kk) kv.push(kk+' kanji');
+      if(vv) kv.push(vv+' vocab');
+      if(kv.length) html += '<div class="tt-split tt-kv">'+kv.join(' · ')+'</div>';
+    }
+  }
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const r = bar.getBoundingClientRect();
+  const w = tip.offsetWidth;
+  const x = Math.max(w/2 + 8, Math.min(window.innerWidth - w/2 - 8, r.left + r.width/2));
+  tip.style.left = x + "px";
+  tip.style.top  = (r.top - 8) + "px";
+}
+function bindChart(sel){
+  const el = $(sel);
+  if(!el || !el.addEventListener) return;
+  const hit = e => (e.target && e.target.closest) ? e.target.closest(".bar") : null;
+  el.addEventListener("mousemove", e=>{ const b = hit(e); b ? showChartTip(b) : hideChartTip(); });
+  el.addEventListener("mouseleave", hideChartTip);
+  el.addEventListener("pointerdown", e=>{ const b = hit(e); if(b) showChartTip(b); });
+}
+bindChart("#hourly");
+bindChart("#forecast");
+
+/* One-line version of the same tooltip, for the Items page's stage bars.
+   Native title="" tooltips are what these used to use, but they're slow
+   (OS-dependent hover delay) and apparently don't fire reliably at all
+   in some setups — this reuses the same #charttip element and instant
+   mousemove-driven show/hide as the Stats charts above, just with a
+   single line instead of the stage/kv breakdown. Bound on the container
+   (event delegation) rather than the individual segments, so it keeps
+   working after renderItemBars() rebuilds the innerHTML on every filter
+   change. */
+function showSimpleTip(el, text){
+  const tip = $("#charttip");
+  tip.innerHTML = '<div class="tt-when">'+text+'</div>';
+  tip.hidden = false;
+  const r = el.getBoundingClientRect();
+  const w = tip.offsetWidth;
+  const x = Math.max(w/2 + 8, Math.min(window.innerWidth - w/2 - 8, r.left + r.width/2));
+  tip.style.left = x + "px";
+  tip.style.top  = (r.top - 8) + "px";
+}
+function bindSimpleTips(sel){
+  const el = $(sel);
+  if(!el || !el.addEventListener) return;
+  const hit = e => (e.target && e.target.closest) ? e.target.closest("[data-tip]") : null;
+  el.addEventListener("mousemove", e=>{ const b = hit(e); b ? showSimpleTip(b, b.dataset.tip) : hideChartTip(); });
+  el.addEventListener("mouseleave", hideChartTip);
+  el.addEventListener("pointerdown", e=>{ const b = hit(e); if(b) showSimpleTip(b, b.dataset.tip); });
+}
+bindSimpleTips("#i-bar");
+bindSimpleTips("#i-levels");
+bindSimpleTips("#heat");
+window.addEventListener("scroll", hideChartTip, {passive:true});
+
+/* ═══════════════════════════════════════════════════════════════
+   Items — every kanji and word, grouped and colour-coded by stage
+   ═══════════════════════════════════════════════════════════════ */
+const GROUPS = [
+  ["lesson",      "Lesson",      "var(--s-lesson)"],
+  ["trainee",     "Trainee",     "var(--s-trainee)"],
+  ["apprentice",  "Apprentice",  "var(--s-apprentice)"],
+  ["guru",        "Guru",        "var(--s-guru)"],
+  ["master",      "Master",      "var(--s-master)"],
+  ["enlightened", "Enlightened", "var(--s-enlightened)"],
+  ["burned",      "Burned",      "var(--s-burned)"]
+];
+const GROUP_LABEL = Object.fromEntries(GROUPS.map(g=>[g[0], g[1]]));
+function stageGroup(stage){
+  if(stage === 0) return "lesson";
+  if(stage <= TRAINEE_TOP) return "trainee";
+  if(stage <= APPRENTICE_TOP) return "apprentice";
+  if(stage <= 8) return "guru";
+  if(stage === 9) return "master";
+  if(stage === 10) return "enlightened";
+  return "burned";
+}
+let itemSel = null;
+
+function itemList(){
+  const out = [];
+  for(const id in S.cards){
+    const s = SUBJ[id]; if(!s) continue;
+    const c = S.cards[id];
+    out.push({
+      id, c, s,
+      vocab: s.type === "vocabulary",
+      group: stageGroup(c.stage),
+      locked: s.type === "vocabulary" && c.stage === 0 && !vocabReady(id),
+      level: s.level || 0
+    });
+  }
+  return out;
+}
+function esc(x){ return String(x==null?"":x).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+
+/* "0 kanji" / "0 vocab" is noise — only mention the types actually
+   present, and skip the parenthetical entirely when there's nothing
+   to break down (e.g. the bucket is empty, or the type filter has
+   already reduced it to one kind). */
+function kvNote(k, v){
+  if(k && v) return k+" kanji · "+v+" vocab";
+  if(k) return k+" kanji";
+  if(v) return v+" vocab";
+  return "";
+}
+/* The two composition bars ("Everything in your deck" and "By WaniKani
+   level") react to the same type/stage filters as the grid below — set
+   type to "Kanji only" or stage to "Guru", and both bars recompute from
+   that subset. Sort has nothing to filter (it only reorders the grid),
+   so it's wired up too but is a no-op here. */
+function renderItemBars(){
+  const typeFilter = $("#i-type") ? ($("#i-type").value || "all") : "all";
+  const groupFilter = $("#i-group") ? ($("#i-group").value || "all") : "all";
+  let all = itemList();
+  if(typeFilter !== "all") all = all.filter(it => typeFilter==="kanji" ? !it.vocab : it.vocab);
+  if(groupFilter === "locked") all = all.filter(it=>it.locked);
+  else if(groupFilter !== "all") all = all.filter(it=>it.group === groupFilter);
+
+  const tot = {}, kv = {};
+  for(const g of GROUPS){ tot[g[0]] = 0; kv[g[0]] = {k:0, v:0}; }
+  for(const it of all){ tot[it.group]++; kv[it.group][it.vocab ? "v" : "k"]++; }
+  $("#i-bar").innerHTML = GROUPS.map(([k,,col])=>{
+    const note = kvNote(kv[k].k, kv[k].v);
+    return '<div style="flex:'+(tot[k]||0.0001)+' 0 0;background:'+col+'"'
+      + ' data-tip="'+esc(GROUP_LABEL[k]+' '+tot[k]+(note ? " ("+note+")" : ""))+'"></div>';
+  }).join("");
+  $("#i-legend").innerHTML = GROUPS.map(([k,label,col])=>
+    '<span><i style="background:'+col+'"></i>'+label+' '+tot[k]+'</span>').join("");
+
+  const byLevel = {};
+  for(const it of all){ (byLevel[it.level] = byLevel[it.level] || []).push(it); }
+  const levels = Object.keys(byLevel).map(Number).sort((a,b)=>a-b);
+  $("#i-levels").innerHTML = levels.map(lv=>{
+    const items = byLevel[lv], seg = {}, segKV = {};
+    for(const g of GROUPS){ seg[g[0]] = 0; segKV[g[0]] = {k:0, v:0}; }
+    for(const it of items){ seg[it.group]++; segKV[it.group][it.vocab ? "v" : "k"]++; }
+    const done = items.filter(i=>["guru","master","enlightened","burned"].includes(i.group)).length;
+    const bars = GROUPS.filter(([k])=>seg[k]).map(([k,,col])=>{
+      const note = kvNote(segKV[k].k, segKV[k].v);
+      return '<i style="flex:'+seg[k]+' 0 0;background:'+col+'"'
+        + ' data-tip="'+esc(GROUP_LABEL[k]+' '+seg[k]+(note ? " ("+note+")" : ""))+'"></i>';
+    }).join("");
+    return '<div class="levelrow"><span class="lv">lv '+lv+'</span>'
+         + '<div class="lbar">'+bars+'</div>'
+         + '<span class="lnum">'+done+' / '+items.length+'</span></div>';
+  }).join("");
+  $("#i-levelnote").textContent = levels.length
+    ? "Levels "+levels[0]+"–"+levels[levels.length-1]+" · the count is items at Guru or above."
+    : "";
+}
+function renderItems(){
+  const all = itemList();
+  if(!all.length){
+    $("#i-bar").innerHTML=""; $("#i-legend").innerHTML=""; $("#i-tiles").innerHTML=""; $("#i-tiles2").innerHTML="";
+    $("#i-levels").innerHTML=""; $("#i-grid").innerHTML="";
+    $("#i-count").textContent = "Nothing in your deck yet — sync or load the demo deck in Setup.";
+    $("#i-levelnote").textContent = "";
+    return;
+  }
+  renderItemBars();
+
+  const nV = all.filter(i=>i.vocab).length;
+  const nLocked = all.filter(i=>i.locked).length;
+  const guruPlus = all.filter(i=>["guru","master","enlightened","burned"].includes(i.group)).length;
+  const nBurned = all.filter(i=>i.group==="burned").length;
+  $("#i-tiles").innerHTML =
+    tile(all.length - nV, "Kanji") +
+    tile(nV, "Vocabulary") +
+    tile(nLocked, "Locked") +
+    tile(guruPlus, "Guru or above") +
+    tile(nBurned, "Burned");
+
+  // Accuracy, from the per-card counters — never trimmed, so these are
+  // lifetime figures for every item still in the deck.
+  let kReps=0, kMiss=0, vReps=0, vMiss=0, seen=0, clean=0, leech=0, reps=0;
+  for(const it of all){
+    const c = it.c;
+    if(it.vocab){ vReps += c.reps||0; vMiss += c.lapses||0; }
+    else { kReps += c.reps||0; kMiss += c.lapses||0; }
+    if(c.reps){ seen++; reps += c.reps; if(!c.lapses) clean++; }
+    if((c.lapses||0) >= 5) leech++;
+  }
+  const rate = (miss,r)=> r ? Math.round(miss/r*100) : "—";
+  $("#i-tiles2").innerHTML =
+    tile(rate(kMiss,kReps),"Kanji miss rate", kReps ? "%" : "") +
+    tile(rate(vMiss,vReps),"Vocab miss rate", vReps ? "%" : "") +
+    tile(clean,"Never missed") +
+    tile(leech,"Leeches") +
+    tile(seen ? (reps/seen).toFixed(1) : "—","Reviews / item");
+
+  renderItemGrid();
+}
+
+function renderItemGrid(){
+  const q = ($("#i-search").value||"").trim().toLowerCase();
+  const type = $("#i-type").value || "all";
+  const grp  = $("#i-group").value || "all";
+  const sort = $("#i-sort").value || "level";
+  let list = itemList();
+  if(type !== "all") list = list.filter(i=> type==="vocabulary" ? i.vocab : !i.vocab);
+  if(grp === "locked") list = list.filter(i=>i.locked);
+  else if(grp !== "all") list = list.filter(i=>i.group === grp);
+  if(q){
+    list = list.filter(i=>
+      (i.s.ch||"").includes(q) ||
+      (i.s.primary||"").toLowerCase().includes(q) ||
+      (i.s.alts||[]).some(a=>a.toLowerCase().includes(q)) ||
+      (i.s.reading||"").includes(q) ||
+      (i.s.readings||[]).some(r=>(r.r||"").includes(q))
+    );
+  }
+
+  const chip = it =>
+    '<button class="tile-item'+(it.vocab?" vocab":"")+'" data-id="'+esc(it.id)+'"'
+    + ' data-g="'+it.group+'" data-sel="'+(itemSel===it.id?1:0)+'"'
+    + (it.locked?' data-locked="1"':'')
+    + ' title="'+esc(it.s.primary||"")+' · '+esc(stageName(it.c.stage))+(it.locked?' · locked':'')+'">'
+    + esc(it.s.ch||"") + '</button>';
+
+  let html = "";
+  if(sort === "level"){
+    const by = {};
+    for(const it of list){ (by[it.level] = by[it.level] || []).push(it); }
+    for(const lv of Object.keys(by).map(Number).sort((a,b)=>a-b)){
+      const items = by[lv].sort((a,b)=> (a.vocab?1:0)-(b.vocab?1:0) || b.c.stage-a.c.stage);
+      html += '<div class="lvhead">Level <b>'+lv+'</b><span>'+items.length+' items</span></div>'
+            + '<div class="igrid">'+items.map(chip).join("")+'</div>';
+    }
+  } else if(sort === "stage"){
+    for(const [k,label] of GROUPS.map(g=>[g[0],g[1]])){
+      const items = list.filter(i=>i.group===k).sort((a,b)=>a.level-b.level);
+      if(!items.length) continue;
+      html += '<div class="lvhead"><b>'+label+'</b><span>'+items.length+' items</span></div>'
+            + '<div class="igrid">'+items.map(chip).join("")+'</div>';
+    }
+  } else {
+    const items = list.slice().sort((a,b)=>(a.c.due||0)-(b.c.due||0));
+    html = '<div class="igrid">'+items.map(chip).join("")+'</div>';
+  }
+  $("#i-grid").innerHTML = html || '<p class="muted">Nothing matches those filters.</p>';
+  $("#i-count").textContent = list.length+" of "+Object.keys(S.cards).length+" items shown.";
+}
+
+function showItemDetail(id){
+  const s = SUBJ[id], c = S.cards[id];
+  if(!s || !c) return;
+  itemSel = id;
+  const rd = s.type === "vocabulary"
+    ? (s.reading || "")
+    : (s.readings||[]).map(r=>r.r).join("  ");
+  const when = isBurned(c) ? "burned" : c.stage === 0
+    ? (vocabReady(id) ? "waiting in lessons" : "locked until its kanji reach Guru")
+    : (c.due <= now() ? "due now" : "due in "+fmtIvl(c.due-now()));
+  const acc = c.reps ? Math.round(c.correct/c.reps*100)+"% correct over "+c.reps+" reviews" : "not reviewed yet";
+  let comp = "";
+  if(s.type === "vocabulary" && (s.components||[]).length){
+    comp = "components " + s.components.map(cid=>{
+      const cs = SUBJ[cid], cc = S.cards[cid];
+      if(!cs) return "?";
+      return (cs.ch||"?")+" "+(cc ? stageName(cc.stage) : "not in deck");
+    }).join(" · ");
+  }
+  $("#i-detail").innerHTML =
+    '<button class="d-close" id="i-detailclose" title="Close">✕</button>'
+    + '<div class="d-top"><span class="d-ch">'+esc(s.ch||"")+'</span>'
+    + '<span class="d-kw">'+esc(s.primary||"")+'</span>'
+    + (rd ? '<span class="d-rd">'+esc(rd)+'</span>' : "")
+    + '</div>'
+    + '<div class="d-meta">'
+    + (s.type==="vocabulary"?"Vocabulary":"Kanji")+' · level '+(s.level||"?")+' · '+esc(stageName(c.stage))+' · '+when+'<br>'
+    + acc + (c.lapses?" · "+c.lapses+" missed":"") + (c.partials?" · "+c.partials+" partial":"")
+    + (comp ? "<br>"+esc(comp) : "")
+    + '</div>'
+    + '<div class="d-links">'
+    + '<a href="'+esc(s.url||"")+'" target="_blank" rel="noopener">WaniKani</a>'
+    + '<a href="https://jisho.org/search/'+encodeURIComponent(s.ch||"")+'" target="_blank" rel="noopener">Jisho</a>'
+    + '</div>';
+  $("#i-detail").hidden = false;
+  $("#i-detailclose").onclick = ()=>{ itemSel=null; $("#i-detail").hidden=true; renderItemGrid(); };
+  renderItemGrid();
+}
+
+$("#i-grid").addEventListener("click", e=>{
+  const b = e.target.closest ? e.target.closest(".tile-item") : null;
+  if(b) showItemDetail(b.dataset.id);
+});
+let itemFilterTimer = null;
+for(const sel of ["#i-search","#i-type","#i-group","#i-sort"]){
+  $(sel).addEventListener("input", ()=>{
+    clearTimeout(itemFilterTimer);
+    itemFilterTimer = setTimeout(renderItemGrid, 120);
+  });
+  $(sel).addEventListener("change", renderItemGrid);
+}
+// The composition bars react to type + stage (see renderItemBars); sort
+// has nothing to change there, but stays wired up for consistency.
+for(const sel of ["#i-type","#i-group","#i-sort"]){
+  $(sel).addEventListener("change", renderItemBars);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Routing
+   ═══════════════════════════════════════════════════════════════ */
+/* Clocks move while the tab is in the background — bring everything
+   back in step on the timer and whenever the tab regains focus. */
+function refreshLive(full){
+  renderCounts();
+  if(!$("#v-review").hidden && !current) showCard();
+  if(!$("#v-stats").hidden) renderStats();
+  // The items grid is expensive to rebuild, so only on a real return.
+  if(full && !$("#v-items").hidden) renderItems();
+}
+function go(name){
+  for(const v of ["review","items","stats","setup"]) $("#v-"+v).hidden = (v!==name);
+  document.querySelectorAll(".navlinks button").forEach(b=> b.setAttribute("aria-current", String(b.dataset.go===name)));
+  if(name==="stats") renderStats();
+  if(name==="items") renderItems();
+  if(name==="review"){
+    extraQuota = 0;
+    // Random order means re-running showCard would swap the card out from
+    // under you, so an unanswered one is kept.
+    if(current) renderCounts(); else showCard();
+  }
+  if(name==="setup") renderDataSummary();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=> go(b.dataset.go));
+
+/* ═══════════════════════════════════════════════════════════════
+   Boot
+   ═══════════════════════════════════════════════════════════════ */
+(async function(){
+  await loadAll();
+  fillSettings(); applySettings(); renderDataSummary();
+  go(Object.keys(S.cards).length ? "review" : "setup");
+  renderCounts();
+  backgroundPull();
+  setInterval(refreshLive, 30000);
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refreshLive(true); });
+  window.addEventListener("focus", ()=>{ refreshLive(true); backgroundPull(); });
+})();
+</script>
+</body>
+</html>
