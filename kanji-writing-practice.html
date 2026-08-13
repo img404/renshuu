@@ -784,40 +784,112 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 <script>
 "use strict";
 /* ═══════════════════════════════════════════════════════════════
-   Storage — uses the artifact storage API when present,
-   falls back to localStorage when the file is opened directly.
+   Storage — the artifact storage API when present; otherwise
+   IndexedDB, with localStorage only as a last-resort fallback for
+   browsers that somehow lack IndexedDB.
+
+   This used to be localStorage-only. localStorage's quota is small and
+   fixed (commonly 5-10MB, sometimes less) and shared across every key
+   under the origin — SUBJ alone (meanings/readings/mnemonics for a full
+   WaniKani kanji + vocab curriculum) can get close to that by itself,
+   and a deck with real review history and cached stroke paths on top
+   of it clears it easily. IndexedDB's quota is a share of actual free
+   disk space, effectively unlimited for this app's purposes.
    ═══════════════════════════════════════════════════════════════ */
 const hasWS = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+const hasIDB = typeof indexedDB !== "undefined";
+const IDB_NAME = "kwp-db", IDB_STORE = "kv";
+let idbOpenPromise = null;
+function openIDB(){
+  if(idbOpenPromise) return idbOpenPromise;
+  idbOpenPromise = new Promise((resolve, reject)=>{
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error || new Error("IndexedDB open failed"));
+  });
+  return idbOpenPromise;
+}
+function idbGet(k){
+  return openIDB().then(db => new Promise((resolve, reject)=>{
+    const req = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(k);
+    req.onsuccess = ()=> resolve(req.result === undefined ? null : req.result);
+    req.onerror = ()=> reject(req.error);
+  }));
+}
+function idbSet(k, v){
+  return openIDB().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(v, k);
+    tx.oncomplete = ()=> resolve(true);
+    tx.onerror = ()=> reject(tx.error);
+  }));
+}
+function idbDel(k){
+  return openIDB().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(k);
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
+  }));
+}
 const DB = {
   async get(k){
     if(hasWS){
       try{ const r = await window.storage.get(k, false); return r ? JSON.parse(r.value) : null; }
       catch(e){ return null; }
     }
+    if(hasIDB){
+      try{ return await idbGet(k); }catch(e){ /* fall through */ }
+    }
     try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }catch(e){ return null; }
   },
   async set(k,v){
-    const s = JSON.stringify(v);
     if(hasWS){
-      try{ await window.storage.set(k, s, false); return true; }
+      try{ await window.storage.set(k, JSON.stringify(v), false); return true; }
       catch(e){ DB.lastError = e && e.message; return false; }
     }
-    // localStorage on mobile Safari is typically capped around 5-10MB —
-    // SUBJ alone (meanings/readings/mnemonics for the whole WK kanji +
-    // vocab curriculum) can get close to that on its own once combined
-    // with cards/log under the same origin quota. A quota failure here
-    // used to disappear silently (catch → false, nothing ever checked
-    // the return value), which looks exactly like "sync said it worked
-    // but some items are still unknown after reloading."
-    try{ localStorage.setItem(k, s); return true; }
+    if(hasIDB){
+      // Objects go in directly — no JSON round-trip, and no artificial
+      // string-length limit the way localStorage effectively has one.
+      try{ return await idbSet(k, v); }
+      catch(e){ DB.lastError = e && e.message; /* fall through to localStorage as a last resort */ }
+    }
+    try{ localStorage.setItem(k, JSON.stringify(v)); return true; }
     catch(e){ DB.lastError = e && e.message; return false; }
   },
   async del(k){
     if(hasWS){ try{ await window.storage.delete(k, false); }catch(e){} return; }
+    if(hasIDB){ try{ await idbDel(k); return; }catch(e){} }
     try{ localStorage.removeItem(k); }catch(e){}
   }
 };
 const K_DATA = "kwp:data", K_SUBJ = "kwp:subjects", K_STROKE = "kwp:strokes";
+/* One-time move of anything already sitting in localStorage (from
+   before this switch to IndexedDB) into IndexedDB, then clear it back
+   out of localStorage — which, for anyone hitting the quota error this
+   is fixing, is itself what frees up the room. Sync credentials
+   (kwp:sync-token / kwp:sync-gist) are deliberately left alone: they're
+   tiny, and DB.get/set never touch them — see syncConfig(). */
+async function migrateLocalStorageToIDB(){
+  if(hasWS || !hasIDB) return;
+  try{
+    if(await idbGet("kwp:migrated")) return;
+    const keys = [];
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith("kwp:") && k!==K_SYNC_TOKEN && k!==K_SYNC_GIST) keys.push(k);
+    }
+    for(const k of keys){
+      try{
+        const raw = localStorage.getItem(k);
+        if(raw != null) await idbSet(k, JSON.parse(raw));
+      }catch(e){ /* skip anything unreadable rather than abort the whole migration */ }
+    }
+    for(const k of keys) localStorage.removeItem(k);
+    await idbSet("kwp:migrated", true);
+  }catch(e){ /* best-effort — worst case, the old localStorage copy is just left in place */ }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Cross-device sync — a private GitHub Gist as the shared store, so
@@ -1119,6 +1191,7 @@ let undoStack = [];
 let saveTimer = null;
 
 async function loadAll(){
+  await migrateLocalStorageToIDB();
   const d = await DB.get(K_DATA);
   if(d){
     S.settings = {...DEFAULT_SETTINGS, ...(d.settings||{})};
@@ -2121,20 +2194,21 @@ bind("#in-dark","dark");
 $("#in-token").addEventListener("input", ()=>{ S.settings.token=$("#in-token").value.trim(); save(); });
 
 function fmtSpeed(v){ return String(Number(v)).replace(/\.00?$/,"")+"×"; }
-/* Rough estimate of what's actually sitting in localStorage, in KB —
-   JS strings are UTF-16 (~2 bytes/char), which is what the browser's
-   quota counts against, not the UTF-8 byte count JSON.stringify's
-   length would suggest. */
-function localStorageKB(){
-  if(hasWS) return null;
-  try{
-    let total = 0;
-    for(let i=0;i<localStorage.length;i++){
-      const k = localStorage.key(i);
-      total += (k||"").length + (localStorage.getItem(k)||"").length;
-    }
-    return Math.round(total*2/1024);
-  }catch(e){ return null; }
+/* Storage is IndexedDB now (see the Storage section), so a localStorage
+   byte-count isn't the relevant number anymore — navigator.storage.
+   estimate() reports actual usage against the real quota. It's async
+   and not universally supported, so it's fetched separately and
+   appended once it resolves rather than holding up the rest of the
+   summary. */
+function appendStorageEstimate(el){
+  if(hasWS || !(navigator.storage && navigator.storage.estimate)) return;
+  navigator.storage.estimate().then(({usage, quota})=>{
+    if(usage == null) return;
+    const mb = usage/1048576;
+    const pct = quota ? Math.round(usage/quota*100) : null;
+    el.textContent += " · "+(mb<1 ? Math.round(usage/1024)+"KB" : mb.toFixed(1)+"MB")+" stored"
+      +(pct!=null ? " ("+pct+"% of available)" : "");
+  }).catch(()=>{});
 }
 function renderDataSummary(){
   const ids = Object.keys(S.cards);
@@ -2148,11 +2222,11 @@ function renderDataSummary(){
   if(S.meta.demo) bits.push("demo deck");
   if(S.meta.lastSync) bits.push("last sync "+new Date(S.meta.lastSync).toLocaleDateString());
   bits.push(hasWS ? "saved to this chat" : "saved in this browser");
-  const kb = localStorageKB();
-  if(kb != null) bits.push("~"+(kb>1024 ? (kb/1024).toFixed(1)+"MB" : kb+"KB")+" stored locally");
-  $("#data-summary").textContent = bits.join(" · ")+"."
+  const el = $("#data-summary");
+  el.textContent = bits.join(" · ")+"."
     + (missing.length ? "\n"+missing.length+" card"+(missing.length===1?"":"s")+" with no subject data — ID"
         + (missing.length===1?"":"s")+": "+missing.slice(0,8).join(", ")+(missing.length>8?", …":"") : "");
+  appendStorageEstimate(el);
 }
 $("#btn-fetchStrokes").onclick = async ()=>{
   const st = $("#stroke-status"), btn = $("#btn-fetchStrokes");
