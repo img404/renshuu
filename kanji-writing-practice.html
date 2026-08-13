@@ -757,7 +757,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   <div class="status" id="data-status" hidden></div>
 
   <h2>Sync across devices</h2>
-  <p class="muted">Progress syncs through a private GitHub Gist. On your first device, paste a token and leave the Gist ID blank — syncing creates the gist and shows you the ID. Paste that same ID (with its own token) into this field on every other device to link them together.</p>
+  <p class="muted">Progress syncs through a private GitHub Gist, manually — nothing pushes or pulls on its own. On your first device, paste a token and leave the Gist ID blank, then click Push — that creates the gist and fills in the ID here. Paste that same ID (with its own token) into this field on every other device, then Pull there to bring the deck over.</p>
   <label class="field">
     <span class="lbl">GitHub personal access token</span>
     <input type="password" id="in-sync-token" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false">
@@ -765,14 +765,15 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   </label>
   <label class="field">
     <span class="lbl">Gist ID</span>
-    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first sync" autocomplete="off" spellcheck="false">
+    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first push" autocomplete="off" spellcheck="false">
     <span class="hint">The same ID on every device is what links them. Leave this blank the very first time.</span>
   </label>
   <div class="row" style="justify-content:flex-start">
-    <button class="btn primary" id="btn-sync-now">Sync now</button>
+    <button class="btn primary" id="btn-sync-push">Push</button>
+    <button class="btn primary" id="btn-sync-pull">Pull</button>
   </div>
   <div class="status" id="gh-sync-status" hidden></div>
-  <p class="muted">Whichever device saved most recently wins if two devices both changed things while offline — this is built for one person moving between their own devices, not simultaneous editing.</p>
+  <p class="muted">Push sends this device's progress to GitHub, overwriting what's there. Pull brings GitHub's copy here, overwriting this device's. Each one checks the other side's save time first and asks you to confirm before overwriting anything that looks newer — so it's on you to pick the right direction, not a timestamp race.</p>
 
   <h2>Keyboard</h2>
   <p class="muted"><kbd>Space</kbd> reveal, then correct · <kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct · <kbd>U</kbd> undo · <kbd>M</kbd> mnemonic · <kbd>R</kbd> replay</p>
@@ -817,15 +818,16 @@ const K_DATA = "kwp:data", K_SUBJ = "kwp:subjects", K_STROKE = "kwp:strokes";
    never end up in the Export/Import backup file or get pushed into the
    gist's own payload.
 
-   Conflict handling is last-write-wins on S.meta.updatedAt: whichever
-   device saved most recently overwrites the gist, and pulling adopts
-   the gist's copy only if it's newer than what's local. That's the
-   right tradeoff for one person moving between their own devices, but
-   it is NOT built for two devices being used at the same time — the
-   loser's changes in that window are silently gone. Pulling happens on
-   boot and when the tab regains focus to keep that window small; the
-   explicit "Sync now" button does the same pull-then-decide dance on
-   demand.
+   Deliberately manual only — no auto-pull on load/focus, no debounced
+   auto-push after saving. Both directions used to happen silently in
+   the background, which is exactly what produced a corrupted gist (a
+   first-run housekeeping save on a brand-new device won a race against
+   its own initial pull and pushed an empty deck over real progress).
+   Push and Pull are now two explicit buttons in Setup, each comparing
+   save times first and asking before overwriting anything newer — see
+   the button handlers further down for that flow. The building blocks
+   here (pushSync/pullSync/syncPayloadLooksSane) are what those buttons
+   call.
    ═══════════════════════════════════════════════════════════════ */
 const SYNC_FILE = "kanji-writing-practice-sync.json";
 const K_SYNC_TOKEN = "kwp:sync-token", K_SYNC_GIST = "kwp:sync-gist";
@@ -854,9 +856,25 @@ async function ghRequest(url, opts, token){
   }
   return r.json();
 }
+/* Cards without their subject dictionary is exactly the corruption a
+   background-sync race once produced: SUBJ carries every kanji's
+   character, meanings, and readings, so cards with no matching subject
+   render as "unknown," and logic that reads SUBJ (vocab type, the
+   vocab-locked-until-its-kanji-are-Guru gate) misbehaves — which is
+   also why the lesson count was inflated: locked vocab no longer read
+   as locked without SUBJ to check. This is a cheap sanity check run
+   before either trusting a pulled snapshot or pushing a local one. */
+function syncPayloadLooksSane(data, subjects){
+  const hasCards = data && data.cards && Object.keys(data.cards).length > 0;
+  const hasSubjects = subjects && Object.keys(subjects).length > 0;
+  return !hasCards || hasSubjects;
+}
 async function pushSync(){
   const {token, gistId} = syncConfig();
   if(!token) throw new Error("No GitHub token set.");
+  if(!syncPayloadLooksSane(S, SUBJ)){
+    throw new Error("This device's data looks incomplete (cards with no subject info) — not pushing, to avoid corrupting the sync. Try \"Sync from WaniKani\" on this device first.");
+  }
   const content = JSON.stringify({v:1, data:S, subjects:SUBJ});
   if(gistId){
     await ghRequest("https://api.github.com/gists/"+gistId, {
@@ -898,75 +916,19 @@ async function pullSync(){
   try{ return JSON.parse(content); }
   catch(e){ throw new Error("Sync data on GitHub looks incomplete or corrupted ("+e.message+")."); }
 }
-/* Pulls, keeps whichever side is newer, and pushes if local should win.
-   Returns a short human-readable summary for the status line. */
-async function runSync(){
-  const {token, gistId} = syncConfig();
-  if(!token) return "No GitHub token set — nothing to sync.";
-  const localTime = (S.meta && S.meta.updatedAt) || 0;
-  const remote = await pullSync();
-  const remoteTime = (remote && remote.data && remote.data.meta && remote.data.meta.updatedAt) || 0;
-  if(remote && remoteTime > localTime){
-    S = {...S, ...remote.data};
-    S.settings = {...DEFAULT_SETTINGS, ...S.settings};
-    SUBJ = remote.subjects || SUBJ;
-    await DB.set(K_SUBJ, SUBJ); await saveNow();
-    fillSettings(); applySettings(); renderDataSummary(); renderCounts();
-    if(!$("#v-review").hidden) showCard();
-    if(!$("#v-items").hidden) renderItems();
-    if(!$("#v-stats").hidden) renderStats();
-    return "Pulled newer progress from another device.";
-  }
-  const id = await pushSync();
-  return gistId
-    ? "This device was newer — pushed to sync."
-    : "Created a new sync gist. Paste this Gist ID into the same field on your other devices: "+id;
+/* Human-readable "this device vs. the gist" comparison, shown before
+   either button acts so the person — not a timestamp race — decides
+   which direction is right. */
+function fmtSyncTime(ms){
+  return ms ? new Date(ms).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "never saved";
 }
-let syncPushTimer = null;
-/* Stays false until the boot-time pull has been attempted (see Boot,
-   below). Without this, a brand-new device's first-run housekeeping in
-   migrate() — which calls save() to persist default meta flags on an
-   otherwise-empty deck — can win a race against the initial pull: if
-   the pull takes longer than save()'s 900ms debounce, the empty deck
-   gets stamped with the current time and pushed to the gist before the
-   real data ever arrives, overwriting it. No push may happen before
-   this device has had one real chance to pull first. */
-let syncReady = false;
-/* Called after every local save; pushes to the gist a few seconds after
-   things go quiet, so a full review session doesn't fire a GitHub API
-   request per card. Silent by design — errors here shouldn't interrupt
-   reviewing, they'll surface next time "Sync now" is pressed. */
-function scheduleSyncPush(){
-  if(!syncConfig().token || !syncReady) return;
-  clearTimeout(syncPushTimer);
-  syncPushTimer = setTimeout(()=>{
-    // A first-ever push (no gist id yet) creates the gist and saves its
-    // id — if Setup happens to be open, reflect that id right away
-    // instead of leaving the field blank until the next visit.
-    pushSync().then(()=>{ if(!$("#v-setup").hidden) $("#in-sync-gist").value = syncConfig().gistId; }).catch(()=>{});
-  }, 4000);
-}
-/* Best-effort pull, used on boot and when the tab regains focus. Unlike
-   runSync(), never pushes — a background check shouldn't be the thing
-   that overwrites the gist, only an explicit save or Sync-now click. */
-async function backgroundPull(){
-  const {token, gistId} = syncConfig();
-  if(!token || !gistId) return;
-  try{
-    const localTime = (S.meta && S.meta.updatedAt) || 0;
-    const remote = await pullSync();
-    const remoteTime = (remote && remote.data && remote.data.meta && remote.data.meta.updatedAt) || 0;
-    if(remote && remoteTime > localTime){
-      S = {...S, ...remote.data};
-      S.settings = {...DEFAULT_SETTINGS, ...S.settings};
-      SUBJ = remote.subjects || SUBJ;
-      await DB.set(K_SUBJ, SUBJ); await saveNow();
-      fillSettings(); applySettings(); renderDataSummary(); renderCounts();
-      if(!$("#v-review").hidden && !current) showCard();
-      if(!$("#v-items").hidden) renderItems();
-      if(!$("#v-stats").hidden) renderStats();
-    }
-  }catch(e){ /* silent — next manual Sync now will surface the error */ }
+function syncDeltaText(localTime, remoteTime){
+  const local = "This device: "+fmtSyncTime(localTime);
+  const remote = "GitHub: "+fmtSyncTime(remoteTime);
+  if(!remoteTime) return local+" · "+remote;
+  if(!localTime) return local+" · "+remote;
+  const newer = remoteTime > localTime ? "GitHub" : "this device";
+  return local+" · "+remote+" · "+newer+" is newer by "+fmtCountdown(Math.abs(remoteTime-localTime));
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1157,19 +1119,20 @@ async function loadAll(){
 function save(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{
+    // Still stamped on every save — Push/Pull compare this against the
+    // gist's timestamp to warn before overwriting anything newer — but
+    // nothing here pushes or pulls on its own anymore. Sync only happens
+    // from the explicit buttons in Setup.
     S.meta.updatedAt = Date.now();
     DB.set(K_DATA, {settings:S.settings, cards:S.cards, log:S.log.slice(-12000), meta:S.meta});
-    scheduleSyncPush();
   }, 900);
 }
 function saveNow(){
   clearTimeout(saveTimer);
   S.meta.updatedAt = Date.now();
-  const r = DB.set(K_DATA, {settings:S.settings, cards:S.cards, log:S.log.slice(-12000), meta:S.meta});
-  scheduleSyncPush();
-  return r;
+  return DB.set(K_DATA, {settings:S.settings, cards:S.cards, log:S.log.slice(-12000), meta:S.meta});
 }
-document.addEventListener("visibilitychange", ()=>{ if(document.hidden) saveNow(); else backgroundPull(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) saveNow(); });
 
 /* ═══════════════════════════════════════════════════════════════
    Queue
@@ -2217,19 +2180,111 @@ armConfirm($("#btn-reset"), "Click again to erase everything", async ()=>{
 
 $("#in-sync-token").addEventListener("input", ()=> setSyncToken($("#in-sync-token").value.trim()));
 $("#in-sync-gist").addEventListener("input", ()=> setSyncGist($("#in-sync-gist").value.trim()));
-$("#btn-sync-now").onclick = async ()=>{
-  const btn = $("#btn-sync-now");
-  btn.disabled = true;
-  setStatus($("#gh-sync-status"), "Syncing…");
+
+/* Push and Pull share one shape: check the other side's save time first,
+   report the delta, and only require a second click — arming the
+   button, same visual treatment as the "click again" buttons elsewhere
+   — when the side about to be overwritten looks newer. If it doesn't,
+   the first click just does it. */
+function armSyncButton(btn, warning){
+  btn.textContent = "Overwrite anyway?";
+  btn.classList.add("armed");
+  clearTimeout(btn._armTimer);
+  btn._armed = true;
+  btn._armTimer = setTimeout(()=>{ btn._armed=false; btn.textContent=btn._label; btn.classList.remove("armed"); }, 8000);
+  setStatus($("#gh-sync-status"), warning, true);
+}
+function disarmSyncButton(btn){
+  btn._armed = false;
+  clearTimeout(btn._armTimer);
+  btn.textContent = btn._label;
+  btn.classList.remove("armed");
+}
+
+const btnPush = $("#btn-sync-push"); btnPush._label = btnPush.textContent;
+btnPush.onclick = async ()=>{
+  if(!syncConfig().token){ setStatus($("#gh-sync-status"), "No GitHub token set.", true); return; }
+  if(btnPush._armed){ disarmSyncButton(btnPush); await doPush(); return; }
+  btnPush.disabled = true;
+  setStatus($("#gh-sync-status"), "Checking GitHub…");
   try{
-    const msg = await runSync();
-    setStatus($("#gh-sync-status"), msg);
-    $("#in-sync-gist").value = syncConfig().gistId;
+    const localTime = (S.meta && S.meta.updatedAt) || 0;
+    const remote = await pullSync();
+    const remoteTime = (remote && remote.data && remote.data.meta && remote.data.meta.updatedAt) || 0;
+    btnPush.disabled = false;
+    if(remote && remoteTime > localTime){
+      armSyncButton(btnPush, syncDeltaText(localTime, remoteTime)+" — pushing will overwrite the newer copy on GitHub. Click Push again within 8s to do it anyway.");
+      return;
+    }
+    setStatus($("#gh-sync-status"), syncDeltaText(localTime, remoteTime));
+    await doPush();
   }catch(err){
-    setStatus($("#gh-sync-status"), err.message || "Sync failed.", true);
+    btnPush.disabled = false;
+    setStatus($("#gh-sync-status"), err.message || "Couldn't check GitHub.", true);
   }
-  btn.disabled = false;
 };
+async function doPush(){
+  btnPush.disabled = true;
+  setStatus($("#gh-sync-status"), "Pushing…");
+  try{
+    const id = await pushSync();
+    $("#in-sync-gist").value = syncConfig().gistId;
+    setStatus($("#gh-sync-status"), "Pushed. Gist ID: "+id);
+  }catch(err){
+    setStatus($("#gh-sync-status"), err.message || "Push failed.", true);
+  }
+  btnPush.disabled = false;
+}
+
+const btnPull = $("#btn-sync-pull"); btnPull._label = btnPull.textContent;
+btnPull.onclick = async ()=>{
+  const {token, gistId} = syncConfig();
+  if(!token || !gistId){ setStatus($("#gh-sync-status"), "Need both a token and a Gist ID to pull.", true); return; }
+  if(btnPull._armed){ disarmSyncButton(btnPull); await doPull(); return; }
+  btnPull.disabled = true;
+  setStatus($("#gh-sync-status"), "Checking GitHub…");
+  try{
+    const localTime = (S.meta && S.meta.updatedAt) || 0;
+    const remote = await pullSync();
+    const remoteTime = (remote && remote.data && remote.data.meta && remote.data.meta.updatedAt) || 0;
+    btnPull.disabled = false;
+    if(!remote){ setStatus($("#gh-sync-status"), "No sync data found on GitHub yet — push from a device with progress first.", true); return; }
+    if(localTime > remoteTime){
+      armSyncButton(btnPull, syncDeltaText(localTime, remoteTime)+" — this device looks newer, so pulling will overwrite it with the older GitHub copy. Click Pull again within 8s to do it anyway.");
+      return;
+    }
+    setStatus($("#gh-sync-status"), syncDeltaText(localTime, remoteTime));
+    await doPull();
+  }catch(err){
+    btnPull.disabled = false;
+    setStatus($("#gh-sync-status"), err.message || "Couldn't check GitHub.", true);
+  }
+};
+async function doPull(){
+  btnPull.disabled = true;
+  setStatus($("#gh-sync-status"), "Pulling…");
+  try{
+    const remote = await pullSync();
+    if(!remote){ setStatus($("#gh-sync-status"), "No sync data found on GitHub yet.", true); btnPull.disabled=false; return; }
+    if(!syncPayloadLooksSane(remote.data, remote.subjects)){
+      setStatus($("#gh-sync-status"), "The copy on GitHub looks incomplete (cards with no subject info) — not pulling it. Run \"Sync from WaniKani\" on whichever device has the full deck, then Push from there.", true);
+      btnPull.disabled = false;
+      return;
+    }
+    S = {...S, ...remote.data};
+    S.settings = {...DEFAULT_SETTINGS, ...S.settings};
+    SUBJ = (remote.subjects && Object.keys(remote.subjects).length) ? remote.subjects : SUBJ;
+    await DB.set(K_SUBJ, SUBJ); await saveNow();
+    fillSettings(); applySettings(); renderDataSummary(); renderCounts();
+    if(!$("#v-review").hidden) showCard();
+    if(!$("#v-items").hidden) renderItems();
+    if(!$("#v-stats").hidden) renderStats();
+    setStatus($("#gh-sync-status"), "Pulled from GitHub.");
+  }catch(err){
+    setStatus($("#gh-sync-status"), err.message || "Pull failed.", true);
+  }
+  btnPull.disabled = false;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Stats
@@ -2712,22 +2767,9 @@ document.querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=> go(b.dataset
   fillSettings(); applySettings(); renderDataSummary();
   go(Object.keys(S.cards).length ? "review" : "setup");
   renderCounts();
-  // The UI is already showing local data by this point, so awaiting
-  // here doesn't delay first paint — it only delays arming syncReady,
-  // which is exactly the point: no save on this device gets to push
-  // until this device has had one real chance to pull first.
-  await backgroundPull();
-  syncReady = true;
   setInterval(refreshLive, 30000);
-  // Focus/visibility events only fire when you actually leave and come
-  // back to the tab — a tab that's left open and visible for hours (the
-  // whole point of syncing) never triggers either one, so it'd otherwise
-  // go stale until something else made it blur. Polling every couple of
-  // minutes catches updates from another device without that requiring
-  // any interaction here at all.
-  setInterval(backgroundPull, 120000);
   document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refreshLive(true); });
-  window.addEventListener("focus", ()=>{ refreshLive(true); backgroundPull(); });
+  window.addEventListener("focus", ()=>refreshLive(true));
 })();
 </script>
 </body>
