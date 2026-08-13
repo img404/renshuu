@@ -2121,8 +2121,25 @@ bind("#in-dark","dark");
 $("#in-token").addEventListener("input", ()=>{ S.settings.token=$("#in-token").value.trim(); save(); });
 
 function fmtSpeed(v){ return String(Number(v)).replace(/\.00?$/,"")+"×"; }
+/* Rough estimate of what's actually sitting in localStorage, in KB —
+   JS strings are UTF-16 (~2 bytes/char), which is what the browser's
+   quota counts against, not the UTF-8 byte count JSON.stringify's
+   length would suggest. */
+function localStorageKB(){
+  if(hasWS) return null;
+  try{
+    let total = 0;
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      total += (k||"").length + (localStorage.getItem(k)||"").length;
+    }
+    return Math.round(total*2/1024);
+  }catch(e){ return null; }
+}
 function renderDataSummary(){
-  const n = Object.keys(S.cards).length;
+  const ids = Object.keys(S.cards);
+  const n = ids.length;
+  const missing = ids.filter(id=>!SUBJ[id]);
   const bits = [];
   bits.push(n+" kanji in your deck");
   bits.push(S.log.length+" answers recorded");
@@ -2131,7 +2148,11 @@ function renderDataSummary(){
   if(S.meta.demo) bits.push("demo deck");
   if(S.meta.lastSync) bits.push("last sync "+new Date(S.meta.lastSync).toLocaleDateString());
   bits.push(hasWS ? "saved to this chat" : "saved in this browser");
-  $("#data-summary").textContent = bits.join(" · ")+".";
+  const kb = localStorageKB();
+  if(kb != null) bits.push("~"+(kb>1024 ? (kb/1024).toFixed(1)+"MB" : kb+"KB")+" stored locally");
+  $("#data-summary").textContent = bits.join(" · ")+"."
+    + (missing.length ? "\n"+missing.length+" card"+(missing.length===1?"":"s")+" with no subject data — ID"
+        + (missing.length===1?"":"s")+": "+missing.slice(0,8).join(", ")+(missing.length>8?", …":"") : "");
 }
 $("#btn-fetchStrokes").onclick = async ()=>{
   const st = $("#stroke-status"), btn = $("#btn-fetchStrokes");
