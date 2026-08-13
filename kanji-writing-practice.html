@@ -771,7 +771,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   <h2>Stroke order</h2>
   <label class="toggle"><input type="checkbox" id="in-stroke"> Redraw stroke by stroke after the reveal</label>
   <label class="toggle"><input type="checkbox" id="in-tapreplay"> Tap the character to replay strokes</label>
-  <p class="muted">Each replay on the same card gets slower — full speed, then half, then a quarter, then it stays there — so you can watch closely without hunting for the speed slider. The next card starts back at full speed. Applies to the replay button and <kbd class="kbd-only">R</kbd> too, not just tapping.</p>
+  <p class="muted">Each replay on the same card gets slower — 80% speed, then 60%, then 40%, then it stays there — so you can watch closely without hunting for the speed slider. The next card starts back at full speed. Applies to the replay button and <kbd class="kbd-only">R</kbd> too, not just tapping.</p>
   <div class="inline">
     <label class="field">
       <span class="lbl">Hold before redrawing</span>
@@ -1682,13 +1682,13 @@ let animToken = 0, strokeTimer = null, strokeSaveTimer = null, currentStrokes = 
    *current* card only — reset to 0 whenever a new card is painted. The
    auto-play on reveal doesn't touch this; it's not a replay. */
 let replayCount = 0;
-/* Tier 1 is full speed, tier 2 half that, tier 3 (and everything after)
-   a quarter — each replay past the first gets slower until it settles,
-   rather than slowing indefinitely. */
+/* Tier 1 is 80% speed, tier 2 60%, tier 3 (and everything after) 40% —
+   each replay past the first gets slower until it settles, rather than
+   slowing indefinitely. */
 function replaySpeedMult(n){
-  if(n <= 1) return 1;
-  if(n === 2) return 0.5;
-  return 0.25;
+  if(n <= 1) return 0.8;
+  if(n === 2) return 0.6;
+  return 0.4;
 }
 let bulkMode = false;
 const sleep = ms => new Promise(r=>setTimeout(r, ms));
