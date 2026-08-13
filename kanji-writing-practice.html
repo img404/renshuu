@@ -175,7 +175,6 @@ input,select{font:inherit;color:inherit}
   font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
   padding:5px 9px;border-radius:2px;
 }
-.navlinks button:hover{color:var(--ink)}
 .navlinks button[aria-current="true"]{color:var(--ink);box-shadow:inset 0 -1px 0 var(--grid)}
 
 /* ── layout ───────────────────────────────────── */
@@ -266,7 +265,6 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 .reading:not(.primary) .val{color:var(--ink-soft)}
 .extlinks{display:flex;gap:16px;justify-content:center;margin:2px 0 4px}
 .extlinks a{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);text-decoration:none;border-bottom:1px solid var(--grid-hair);padding-bottom:1px}
-.extlinks a:hover{color:var(--grid);border-color:var(--grid)}
 .mnemonic{
   max-width:52ch;font-size:14px;line-height:1.62;color:var(--ink-soft);
   text-align:left;margin:16px 0 0;padding:14px 16px;
@@ -283,12 +281,9 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
   font-size:12px;letter-spacing:.16em;text-transform:uppercase;
   transition:background .15s ease,border-color .15s ease;
 }
-.btn:hover{border-color:var(--grid);background:var(--paper)}
 .btn.wide{width:min(100%,300px)}
 .btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.btn.primary:hover{opacity:.88;background:var(--ink)}
 .btn.quiet{border-color:transparent;background:none;color:var(--ink-faint)}
-.btn.quiet:hover{color:var(--ink);border-color:var(--grid-hair)}
 .btn[disabled]{opacity:.4;cursor:not-allowed}
 
 .grades{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(100%,440px)}
@@ -298,18 +293,19 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
   display:flex;flex-direction:column;align-items:center;gap:3px;
   transition:border-color .13s ease,background .13s ease,transform .13s ease;
 }
-.grade:hover{border-color:var(--grid);transform:translateY(-1px)}
 .grade .g-name{font-size:12px;letter-spacing:.1em;text-transform:uppercase}
 .grade .g-ivl{font-family:var(--mono);font-size:13px;color:var(--ink)}
 .grade .g-stage{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-faint);text-align:center;line-height:1.3}
 .grade.again,.grade.demoting{border-color:var(--shu);color:var(--shu-text);background:var(--shu-soft)}
 .grade.again .g-ivl,.grade.again .g-stage,
 .grade.demoting .g-ivl,.grade.demoting .g-stage{color:var(--shu-text);opacity:.85}
-.grade.again:hover,.grade.demoting:hover{background:var(--shu-soft);border-color:var(--shu)}
 
 .row{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:16px}
-.undo{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink-faint)}
-.undo:hover{color:var(--ink)}
+/* No padding here at all previously — just an 11px text node as the hit
+   area, which is too small to tap reliably. The negative margin pulls
+   the extra padding back out visually so it doesn't push neighboring
+   rows around; it only exists to make the tap target bigger. */
+.undo{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink-faint);padding:12px 10px;margin:-12px -10px}
 
 /* ── empty / message states ───────────────────── */
 .empty{text-align:center;padding:clamp(30px,9vw,70px) 0}
@@ -353,9 +349,7 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 .status.err{border-color:var(--shu);color:var(--shu-text)}
 .status[hidden]{display:none}
 .danger{color:var(--shu-text);border-color:var(--shu)}
-.danger:hover{border-color:var(--shu)}
 .btn.armed{background:var(--shu);color:var(--ink-on-accent);border-color:var(--shu)}
-.btn.armed:hover{background:var(--shu);opacity:.9}
 
 /* ── stats ────────────────────────────────────── */
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;background:var(--grid-hair);border:1px solid var(--grid-hair);margin-bottom:8px}
@@ -369,7 +363,10 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 .legend{display:flex;flex-wrap:wrap;gap:6px 20px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:6px}
 .legend i{display:inline-block;width:9px;height:9px;margin-right:6px;font-style:normal}
 
-.chart{display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--grid-hair);padding-top:8px}
+/* overflow-x:auto + a floor on each bar's width means 24-25 bars on a
+   narrow phone scroll horizontally instead of getting squeezed down to
+   a few illegible, untappable pixels each. */
+.chart{display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--grid-hair);padding-top:8px;overflow-x:auto}
 /* Each bar is a column-reverse flex container: its own background is
    only the empty-bucket sliver (min-height:1px, nothing due), and stage
    segments — flex-grown proportionally to their share — stack inside it
@@ -378,9 +375,8 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
    the Items page, so they need a hue-neutral backdrop; a tinted one
    (e.g. the teal --grid-line) bleeds through and casts every segment
    toward that hue instead of its own color. */
-.chart .bar{flex:1;display:flex;flex-direction:column-reverse;background:var(--ink-faint);position:relative;min-height:1px;transition:height .25s ease}
+.chart .bar{flex:1 1 0;min-width:13px;display:flex;flex-direction:column-reverse;background:var(--ink-faint);position:relative;min-height:1px;transition:height .25s ease}
 .chart .bar i{display:block;width:100%}
-.chart .bar:hover{filter:brightness(1.15)}
 .chart .bar[data-today="1"]{box-shadow:inset 0 0 0 2px var(--shu)}
 .charttip{
   position:fixed;z-index:60;pointer-events:none;
@@ -442,7 +438,6 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 }
 /* Vocabulary reads as a leaf: rounded upper-left and lower-right. */
 .tile-item.vocab{font-size:17px;border-radius:11px 2px 11px 2px}
-.tile-item:hover{border-color:var(--grid);transform:translateY(-1px)}
 .tile-item[data-sel="1"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 /* Stage is carried by the fill. Now that every fill is fully opaque
    (not a translucent tint over the default --ink text), each stage
@@ -471,9 +466,8 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 .itemdetail .d-meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:8px;line-height:1.7}
 .itemdetail .d-links{margin-top:8px;display:flex;gap:14px}
 .itemdetail .d-links a{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);text-decoration:none;border-bottom:1px solid var(--grid-hair)}
-.itemdetail .d-links a:hover{color:var(--grid);border-color:var(--grid)}
 .itemdetail .d-close{position:absolute;top:10px;right:12px;font-family:var(--mono);font-size:14px;color:var(--ink-faint)}
-.itemdetail .d-close:hover{color:var(--ink)}
+.table-wrap{overflow-x:auto}
 table.leech{width:100%;border-collapse:collapse;font-size:14px}
 table.leech td{padding:9px 8px;border-bottom:1px solid var(--grid-hair);vertical-align:middle}
 table.leech td.ch{font-family:var(--jp-mincho);font-size:26px;width:1%;padding-right:16px}
@@ -491,6 +485,56 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
+}
+/* ── touch ────────────────────────────────────── */
+/* :hover state that never un-hovers is exactly what happens on a lot of
+   touch browsers — a button stays highlighted after a tap until
+   something else is touched. Scoping every hover rule to devices that
+   can actually hover keeps the effect but drops the stuck-state glitch
+   on ones that can't. */
+@media (hover:hover){
+  .navlinks button:hover{color:var(--ink)}
+  .extlinks a:hover{color:var(--grid);border-color:var(--grid)}
+  .btn:hover{border-color:var(--grid);background:var(--paper)}
+  .btn.primary:hover{opacity:.88;background:var(--ink)}
+  .btn.quiet:hover{color:var(--ink);border-color:var(--grid-hair)}
+  .grade:hover{border-color:var(--grid);transform:translateY(-1px)}
+  .grade.again:hover,.grade.demoting:hover{background:var(--shu-soft);border-color:var(--shu)}
+  .undo:hover{color:var(--ink)}
+  .danger:hover{border-color:var(--shu)}
+  .btn.armed:hover{background:var(--shu);opacity:.9}
+  .chart .bar:hover{filter:brightness(1.15)}
+  .tile-item:hover{border-color:var(--grid);transform:translateY(-1px)}
+  .itemdetail .d-links a:hover{color:var(--grid);border-color:var(--grid)}
+  .itemdetail .d-close:hover{color:var(--ink)}
+}
+/* Elements you tap repeatedly in a review session (grade buttons most
+   of all) shouldn't risk iOS reading quick taps as a double-tap-to-zoom
+   gesture. The div/i-based tap targets (heat cells, chart bars, the
+   stagebar/level composition segments) aren't real buttons, so a
+   tap-and-hold on one of them can trigger the browser's text-selection
+   handles or a callout menu instead of just showing its tooltip —
+   user-select:none stops that. */
+.btn,.grade,.navlinks button,.tile-item,.undo,.masu,
+.heat i,.chart .bar,.stagebar div,.levelrow .lbar i{
+  touch-action:manipulation; -webkit-user-select:none; user-select:none;
+}
+@media (pointer:coarse){
+  /* iOS Safari zooms the whole page in when a focused input's font is
+     under 16px — every text/password/number/search field and select in
+     Setup and the Items filters was sized for a mouse-driven desktop
+     layout and sat well below that. */
+  .field input[type=text],.field input[type=password],.field input[type=number],.field select,
+  .itemcontrols input[type=search],.itemcontrols select,.batchlabel input{
+    font-size:16px;
+  }
+  /* The primary nav was sized for a pointer that lands on an exact
+     pixel; a thumb needs more like 44px of tappable height. */
+  .navlinks button{padding:12px 12px}
+  /* Keyboard-only hints (key names, "press X to do Y") have no
+     equivalent action on a device with no keyboard — every one of them
+     duplicates a button or gesture that's already on screen. */
+  .kbd-only,.kbd-hint{display:none}
 }
 </style>
 </head>
@@ -529,7 +573,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 
     <div id="pre-reveal">
       <button class="btn primary wide" id="btn-reveal">Show answer</button>
-      <div class="prompt-note">Space or Enter</div>
+      <div class="prompt-note kbd-only">Space or Enter</div>
     </div>
 
     <div id="post-reveal" hidden>
@@ -537,7 +581,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
       <div class="extlinks">
         <a id="lnk-wk" target="_blank" rel="noopener">WaniKani</a>
         <a id="lnk-jisho" target="_blank" rel="noopener">Jisho</a>
-        <button class="btn quiet" id="btn-replay" style="padding:0;font-size:11px;letter-spacing:.1em" hidden>Replay strokes (R)</button>
+        <button class="btn quiet" id="btn-replay" style="padding:0;font-size:11px;letter-spacing:.1em" hidden>Replay strokes <span class="kbd-hint">(R)</span></button>
         <button class="btn quiet" id="btn-mnemonic" style="padding:0;font-size:11px;letter-spacing:.1em">Mnemonic</button>
       </div>
       <div class="stroke-note" id="stroke-note" hidden></div>
@@ -553,7 +597,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
     </div>
 
     <div class="row">
-      <button class="undo" id="btn-undo" hidden>← Undo last answer (U)</button>
+      <button class="undo" id="btn-undo" hidden>← Undo last answer <span class="kbd-hint">(U)</span></button>
     </div>
   </div>
 
@@ -571,7 +615,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
       <button class="btn primary" id="btn-batch">Batch, please</button>
     </div>
     <div class="row">
-      <button class="btn quiet" id="btn-undo2" hidden>Undo last answer (U)</button>
+      <button class="btn quiet" id="btn-undo2" hidden>Undo last answer <span class="kbd-hint">(U)</span></button>
     </div>
   </div>
 
@@ -599,7 +643,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   <p class="muted" id="i-levelnote"></p>
 
   <div class="itemcontrols">
-    <input type="search" id="i-search" placeholder="Search character, meaning, or reading" spellcheck="false">
+    <input type="search" id="i-search" placeholder="Search character, meaning, or reading" spellcheck="false" autocapitalize="off" autocorrect="off">
     <select id="i-type">
       <option value="all">All types</option>
       <option value="kanji">Kanji only</option>
@@ -651,7 +695,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 
   <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">Hardest to write</h2>
   <p class="muted" id="leech-note">Kanji you've forgotten the most times. Worth a dedicated page in your notebook.</p>
-  <table class="leech" id="leech"></table>
+  <div class="table-wrap"><table class="leech" id="leech"></table></div>
 </section>
 
 <!-- ══ SETUP ═══════════════════════════════════ -->
@@ -731,7 +775,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
     <label class="field">
       <span class="lbl">Speed — <span id="speedval">3×</span></span>
       <input type="range" id="in-strokespeed" min="0.25" max="10" step="0.25">
-      <span class="hint">Press <kbd>R</kbd> to replay.</span>
+      <span class="hint kbd-only">Press <kbd>R</kbd> to replay.</span>
     </label>
   </div>
   <div class="row" style="justify-content:flex-start">
@@ -765,7 +809,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   </label>
   <label class="field">
     <span class="lbl">Gist ID</span>
-    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first push" autocomplete="off" spellcheck="false">
+    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first push" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
     <span class="hint">The same ID on every device is what links them. Leave this blank the very first time.</span>
   </label>
   <div class="row" style="justify-content:flex-start">
@@ -776,13 +820,20 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   <p class="muted">Push sends this device's progress to GitHub, overwriting what's there. Pull brings GitHub's copy here, overwriting this device's. Each one checks the other side's save time first and asks you to confirm before overwriting anything that looks newer — so it's on you to pick the right direction, not a timestamp race.</p>
 
   <h2>Keyboard</h2>
-  <p class="muted"><kbd>Space</kbd> reveal, then correct · <kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct · <kbd>U</kbd> undo · <kbd>M</kbd> mnemonic · <kbd>R</kbd> replay</p>
+  <p class="muted kbd-only"><kbd>Space</kbd> reveal, then correct · <kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct · <kbd>U</kbd> undo · <kbd>M</kbd> mnemonic · <kbd>R</kbd> replay</p>
 </section>
 
 </main>
 
 <script>
 "use strict";
+/* True on a device whose primary pointer is a finger, not a mouse or
+   trackpad — used to skip keyboard-only hints that a touch device has
+   no way to act on. This is a snapshot at load, not a live listener:
+   the rare case of a touch-screen laptop switching input mid-session
+   isn't worth reacting to, and every read of it happens well after
+   this line runs. */
+const isTouch = typeof matchMedia === "function" && matchMedia("(pointer:coarse)").matches;
 /* ═══════════════════════════════════════════════════════════════
    Storage — the artifact storage API when present; otherwise
    IndexedDB, with localStorage only as a last-resort fallback for
@@ -1527,9 +1578,14 @@ function reveal(){
   // A second partial in a row demotes, so the button says so.
   const demoting = current.pstreak >= 1 && current.stage > 1;
   $("#btn-partial").classList.toggle("demoting", demoting);
+  // The number-key mapping is meaningless with no keyboard — the grade
+  // buttons are already labeled, so on touch this just goes empty rather
+  // than following the same blanket .kbd-only hiding as static hints
+  // (this element also carries the demoting warning, which is worth
+  // keeping regardless of input method).
   $("#grade-hint").innerHTML = demoting
     ? "Second partial in a row — that one drops a stage."
-    : '<kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct';
+    : (isTouch ? "" : '<kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct');
 }
 function answer(g){
   if(!current || !revealed) return;
@@ -2639,6 +2695,18 @@ bindSimpleTips("#i-bar");
 bindSimpleTips("#i-levels");
 bindSimpleTips("#heat");
 window.addEventListener("scroll", hideChartTip, {passive:true});
+// mouseleave (how these tooltips hide themselves elsewhere) never fires
+// on touch — there's no cursor to leave with. Tapping a bar shows its
+// tip via the container listeners above; this is what dismisses it
+// again on the next tap anywhere that isn't another bar. It runs after
+// those listeners (this one's on document, so it sees the event during
+// bubbling, once delegation on the nearer container has already had
+// its turn), so tapping a bar itself doesn't immediately re-hide it.
+document.addEventListener("pointerdown", e=>{
+  const t = e.target;
+  const onTip = t && t.closest && (t.closest(".bar") || t.closest("[data-tip]"));
+  if(!onTip) hideChartTip();
+}, {passive:true});
 
 /* ═══════════════════════════════════════════════════════════════
    Items — every kanji and word, grouped and colour-coded by stage
