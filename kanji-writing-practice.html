@@ -923,12 +923,21 @@ async function runSync(){
     : "Created a new sync gist. Paste this Gist ID into the same field on your other devices: "+id;
 }
 let syncPushTimer = null;
+/* Stays false until the boot-time pull has been attempted (see Boot,
+   below). Without this, a brand-new device's first-run housekeeping in
+   migrate() — which calls save() to persist default meta flags on an
+   otherwise-empty deck — can win a race against the initial pull: if
+   the pull takes longer than save()'s 900ms debounce, the empty deck
+   gets stamped with the current time and pushed to the gist before the
+   real data ever arrives, overwriting it. No push may happen before
+   this device has had one real chance to pull first. */
+let syncReady = false;
 /* Called after every local save; pushes to the gist a few seconds after
    things go quiet, so a full review session doesn't fire a GitHub API
    request per card. Silent by design — errors here shouldn't interrupt
    reviewing, they'll surface next time "Sync now" is pressed. */
 function scheduleSyncPush(){
-  if(!syncConfig().token) return;
+  if(!syncConfig().token || !syncReady) return;
   clearTimeout(syncPushTimer);
   syncPushTimer = setTimeout(()=>{
     // A first-ever push (no gist id yet) creates the gist and saves its
@@ -2703,8 +2712,20 @@ document.querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=> go(b.dataset
   fillSettings(); applySettings(); renderDataSummary();
   go(Object.keys(S.cards).length ? "review" : "setup");
   renderCounts();
-  backgroundPull();
+  // The UI is already showing local data by this point, so awaiting
+  // here doesn't delay first paint — it only delays arming syncReady,
+  // which is exactly the point: no save on this device gets to push
+  // until this device has had one real chance to pull first.
+  await backgroundPull();
+  syncReady = true;
   setInterval(refreshLive, 30000);
+  // Focus/visibility events only fire when you actually leave and come
+  // back to the tab — a tab that's left open and visible for hours (the
+  // whole point of syncing) never triggers either one, so it'd otherwise
+  // go stale until something else made it blur. Polling every couple of
+  // minutes catches updates from another device without that requiring
+  // any interaction here at all.
+  setInterval(backgroundPull, 120000);
   document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refreshLive(true); });
   window.addEventListener("focus", ()=>{ refreshLive(true); backgroundPull(); });
 })();
