@@ -43,31 +43,28 @@
      as a color rather than a background/border. */
   --shu-text:#856800;
   --shu-soft:rgba(var(--shu-rgb),.20);
-  /* Moss green — currently only used for the heatmap's top bucket and the
-     apprentice tile tint. */
+  /* Moss green — master's fill, and the heatmap's top bucket. */
   --moss:#54622C;
   --moss-rgb:84,98,44;
-  /* Lesson/Guru/Enlightened are teal blended with --paper at three
+  /* Lesson/Trainee/Enlightened are teal blended with --paper at three
      opacities baked into solid hex (so they're opaque, not alpha
-     tricks), spread further apart than a straight .30/.60/.80 split so
-     the three read as distinct steps rather than close variations on
-     the border color. (Originally this ladder ended at Master — see
-     --rust below for why Master and Enlightened swapped.) */
+     tricks), spread apart so the three read as distinct steps rather
+     than close variations on the border color. */
   --s-lesson:#D0DCDA;
-  --s-trainee:var(--shu);
-  --s-apprentice:var(--moss);
-  --s-guru:#6EA1A5;
-  /* Guru's mid-brightness teal doesn't pair cleanly with one text color
-     across both themes the way the others do, so — unlike the rest of
-     this file — its tile text is set directly per theme instead of via
-     a value that self-flips. */
-  --s-guru-text:var(--ink-on-accent);
-  /* Rust is named on its own, separate from --s-enlightened, because the
+  --s-trainee:#6EA1A5;
+  /* Trainee's mid-brightness teal doesn't pair cleanly with one text
+     color across both themes the way the others do, so — unlike the
+     rest of this file — its tile text is set directly per theme instead
+     of via a value that self-flips. */
+  --s-trainee-text:var(--ink-on-accent);
+  /* Rust is named on its own, separate from --s-apprentice, because the
      heatmap's lowest bucket also uses it — decoupling the two means the
      Items page can reassign which SRS stage wears rust without dragging
      the heatmap's color along with it. */
   --rust:#B84E17;
-  --s-master:var(--rust);
+  --s-apprentice:var(--rust);
+  --s-guru:var(--shu);
+  --s-master:var(--moss);
   --s-enlightened:#156C75;
   --s-burned:var(--ink);
   /* Heatmap ramp: each level is a distinct hue (reusing the theme's own
@@ -107,12 +104,12 @@
   --moss:#9AAE5F;
   --moss-rgb:154,174,95;
   --s-lesson:#192F33;
-  --s-trainee:var(--shu);
-  --s-apprentice:var(--moss);
-  --s-guru:#2B6E74;
-  --s-guru-text:var(--paper);
+  --s-trainee:#2B6E74;
+  --s-trainee-text:var(--paper);
   --rust:#F0864A;
-  --s-master:var(--rust);
+  --s-apprentice:var(--rust);
+  --s-guru:var(--shu);
+  --s-master:var(--moss);
   --s-enlightened:#3CACB4;
   --s-burned:var(--ink);
   --heat-0:var(--grid-hair);
@@ -336,7 +333,6 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 .receipt[hidden]{display:none}
 
 /* ── setup / settings ─────────────────────────── */
-.panel{max-width:560px}
 .panel h1{font-family:var(--serif);font-weight:500;font-size:clamp(28px,5vw,38px);margin:0 0 10px;letter-spacing:-.01em}
 .panel h2{font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)}
 .panel p{color:var(--ink-soft);max-width:56ch}
@@ -450,19 +446,23 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
 }
 /* Vocabulary reads as a leaf: rounded upper-left and lower-right. */
 .tile-item.vocab{font-size:17px;border-radius:11px 2px 11px 2px}
+/* Radicals (WaniKani tab's gating list only — never in the writing
+   deck) get a full circle, the clearest possible "this isn't a kanji"
+   signal, since some don't even have a real character to show. */
+.tile-item.radical{border-radius:50%;width:38px;height:38px;padding:0;display:grid;place-items:center;font-size:15px;text-align:center;line-height:1.1}
 .tile-item[data-sel="1"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
-/* Stage is carried by the fill. Now that every fill is fully opaque
-   (not a translucent tint over the default --ink text), each stage
-   needs its own legible text color rather than inheriting the default:
-   trainee's gold stays bright in both themes, so it always wants dark
-   text; apprentice/master are dark-in-light/mid-in-dark, so --paper
-   (which itself flips light/dark per theme) reads well on both. Guru's
-   mid-tone teal is the odd one out — see --s-guru-text above. */
+/* Stage is carried by the fill. Every fill is fully opaque, so each
+   stage needs its own legible text color rather than inheriting the
+   default: guru's gold stays bright in both themes, so it always wants
+   dark text; apprentice/master/enlightened are dark-in-light/mid-in-
+   dark, so --paper (which itself flips light/dark per theme) reads well
+   on all three. Trainee's mid-tone teal is the odd one out — see
+   --s-trainee-text above. */
 .tile-item[data-g="lesson"]{background:var(--paper);border-style:dashed;color:var(--ink-soft)}
-.tile-item[data-g="trainee"]{background:var(--s-trainee);border-color:transparent;color:var(--ink-on-accent)}
+.tile-item[data-g="trainee"]{background:var(--s-trainee);border-color:transparent;color:var(--s-trainee-text)}
 .tile-item[data-g="apprentice"]{background:var(--s-apprentice);border-color:transparent;color:var(--paper)}
-.tile-item[data-g="guru"]{background:var(--s-guru);border-color:transparent;color:var(--s-guru-text)}
-.tile-item[data-g="master"]{background:var(--s-master);border-color:transparent;color:var(--ink-on-accent)}
+.tile-item[data-g="guru"]{background:var(--s-guru);border-color:transparent;color:var(--ink-on-accent)}
+.tile-item[data-g="master"]{background:var(--s-master);border-color:transparent;color:var(--paper)}
 .tile-item[data-g="enlightened"]{background:var(--s-enlightened);border-color:transparent;color:var(--paper)}
 .tile-item[data-g="burned"]{background:var(--s-burned);border-color:transparent;color:var(--paper)}
 .tile-item[data-locked="1"]{opacity:.5}
@@ -713,7 +713,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 </section>
 
 <!-- ══ WANIKANI ═══════════════════════════════════ -->
-<section class="view panel" id="v-wk" hidden>
+<section class="view" id="v-wk" hidden>
   <h1>WaniKani</h1>
   <p class="muted" id="wk-empty">Nothing synced from WaniKani yet — connect an account in Setup first.</p>
 
@@ -733,7 +733,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 </section>
 
 <!-- ══ SETUP ═══════════════════════════════════ -->
-<section class="view panel" id="v-setup" hidden>
+<section class="view" id="v-setup" hidden>
   <h1>Setup</h1>
 
   <nav class="subtabs" id="setup-subtabs">
@@ -2184,13 +2184,26 @@ async function sync(){
     // (small, and rides along with everything else through save/
     // export/gist sync already) rather than SUBJ. passed_at is null for
     // the level currently in progress.
+    //
+    // A reset creates fresh level_progressions for the levels being
+    // redone, but the old pre-reset ones are still sitting in the
+    // account's history — without excluding them, pace math would
+    // double-count those levels and skew the average with numbers from
+    // a run that was explicitly abandoned. Only progressions from at or
+    // after the most recent reset's created_at are kept.
     setStatus(st, who+"Loading level history…");
-    const lp = await wkAll(WK+"level_progressions", token, ()=>{});
-    const levelHistory = lp.map(r=>({
-      level: r.data.level,
-      startedAt: r.data.created_at,
-      passedAt: r.data.passed_at || null
-    })).sort((a,b)=> a.level-b.level);
+    const [lp, resets] = await Promise.all([
+      wkAll(WK+"level_progressions", token, ()=>{}),
+      wkAll(WK+"resets", token, ()=>{})
+    ]);
+    const lastReset = resets.map(r=>r.data.created_at).sort().pop() || null;
+    const levelHistory = lp
+      .filter(r => !lastReset || r.data.created_at >= lastReset)
+      .map(r=>({
+        level: r.data.level,
+        startedAt: r.data.created_at,
+        passedAt: r.data.passed_at || null
+      })).sort((a,b)=> a.level-b.level);
 
     S.meta = {...S.meta, username:uname, level:ulevel, lastSync:now(), demo:false, levelHistory, levelGating};
     await saveNow();
@@ -2769,6 +2782,16 @@ function renderWkSrs(items){
     const g = wkStageGroup(it.s.wkStage);
     tot[g]++; kv[g][it.vocab ? "v" : "k"]++;
   }
+  // "Lesson" (wkStage 0, unlocked but not started) is invisible to the
+  // normal sync, which only ever asks for started=true assignments —
+  // the only place with visibility into not-started items is the
+  // current level's gating detail. So this bucket, unlike every other
+  // one on this subtab, is current-level only rather than account-wide
+  // — the intro copy below says so.
+  const lessonKanji = (S.meta.levelGating || [])
+    .filter(g=>g.type==="kanji" && g.srsStage===0 && g.unlockedAt).length;
+  tot.lesson = lessonKanji;
+  kv.lesson = {k: lessonKanji, v: 0};
   const bar = WK_GROUPS.map(([k,,col])=>{
     const note = kvNote(kv[k].k, kv[k].v);
     return '<div style="flex:'+(tot[k]||0.0001)+' 0 0;background:'+col+'"'
@@ -2776,16 +2799,16 @@ function renderWkSrs(items){
   }).join("");
   const legend = WK_GROUPS.map(([k,label,col])=>
     '<span><i style="background:'+col+'"></i>'+label+' '+tot[k]+'</span>').join("");
-  const total = items.length;
+  const total = items.length + lessonKanji;
   const burnedPct = total ? Math.round(tot.burned/total*100) : 0;
   const tiles = tile(total,"Total items")
-    + tile(tot.apprentice,"Apprentice") + tile(tot.guru,"Guru")
+    + tile(tot.lesson,"Lesson") + tile(tot.apprentice,"Apprentice") + tile(tot.guru,"Guru")
     + tile(tot.master,"Master") + tile(tot.enlightened,"Enlightened")
     + tile(tot.burned,"Burned") + tile(burnedPct,"Burned","%");
   const lastSync = S.meta.lastSync ? " ("+new Date(S.meta.lastSync).toLocaleDateString(undefined,{month:"short",day:"numeric"})+")" : "";
   $("#wk-srs").innerHTML =
     '<h2>SRS distribution</h2>'
-    + '<p class="muted">Real WaniKani stage as of the last sync'+lastSync+' — separate from the writing-practice progress tracked elsewhere in this app. See App vs WaniKani for how the two compare.</p>'
+    + '<p class="muted">Real WaniKani stage as of the last sync'+lastSync+' — separate from the writing-practice progress tracked elsewhere in this app. See App vs WaniKani for how the two compare. Lesson only counts the current level (that is the only place this app can see not-yet-started items); every other bucket is account-wide.</p>'
     + '<div class="stagebar">'+bar+'</div>'
     + '<div class="legend">'+legend+'</div>'
     + '<div class="tiles" style="margin-top:14px">'+tiles+'</div>';
@@ -2824,6 +2847,31 @@ function wkItemBestCaseSec(g, gatingById){
   }, 0);
   return radicalWait + wkSecToGuru(0);
 }
+/* Locked and Lesson aren't part of WK_GROUPS (that taxonomy is only
+   ever fed wkItemList() items, which are always started, so those two
+   states never arise there) — they only apply here, where levelGating
+   gives visibility into not-yet-started current-level items. */
+const WK_LEVEL_GROUPS = [
+  ["locked",      "Locked",      "var(--grid-hair)"],
+  ["lesson",      "Lesson",      "var(--s-lesson)"],
+  ["apprentice",  "Apprentice",  "var(--s-apprentice)"],
+  ["guru",        "Guru",        "var(--s-guru)"],
+  ["master",      "Master",      "var(--s-master)"],
+  ["enlightened", "Enlightened", "var(--s-enlightened)"],
+  ["burned",      "Burned",      "var(--s-burned)"]
+];
+/* Stacked composition segments, same spirit as the Items page's own
+   composition bar — each SRS stage its own color, each with a hover
+   tooltip, instead of a flat guru/not-guru split. tag is "div" for the
+   prominent current-level bar (matching #i-bar, which also gets a
+   flex-grow transition from that tag) or "i" for the compact per-level
+   history rows (matching .lbar elsewhere). */
+function wkLevelSegs(counts, tag){
+  return WK_LEVEL_GROUPS.map(([k,label,col])=>
+    counts[k] ? '<'+tag+' style="flex:'+counts[k]+' 0 0;background:'+col+'"'
+      + ' data-tip="'+esc(label+' '+counts[k])+'"></'+tag+'>' : ""
+  ).join("");
+}
 function renderWkLevel(items){
   const curLevel = S.meta.level || 0;
   const gating = S.meta.levelGating || [];
@@ -2840,11 +2888,12 @@ function renderWkLevel(items){
   const stillNeeded = Math.max(0, required - kanjiGuru);
   const pct = kanji.length ? Math.round(kanjiGuru/kanji.length*100) : 0;
 
-  const progressBar = '<div class="stagebar" style="height:20px">'
-    + '<div style="flex:'+(kanjiGuru||0.0001)+' 0 0;background:var(--s-guru)"'
-    + ' data-tip="'+esc(kanjiGuru+" of "+kanji.length+" kanji at Guru or above")+'"></div>'
-    + '<div style="flex:'+((kanji.length-kanjiGuru)||0.0001)+' 0 0;background:var(--grid-hair)"></div>'
-    + '</div>';
+  const curCounts = {};
+  for(const g of kanji){
+    const grp = !g.unlockedAt ? "locked" : g.srsStage===0 ? "lesson" : wkStageGroup(g.srsStage);
+    curCounts[grp] = (curCounts[grp]||0) + 1;
+  }
+  const progressBar = '<div class="stagebar" style="height:20px">'+wkLevelSegs(curCounts,"div")+'</div>';
 
   let etaLine;
   if(stillNeeded === 0){
@@ -2872,7 +2921,7 @@ function renderWkLevel(items){
           : (!g.unlockedAt ? "Locked" : g.startedAt ? "Apprentice" : "In lessons");
         const disp = s.ch || (s.primary ? "["+s.primary+"]" : "?");
         const tip = (s.primary||"?")+" — WK: "+wkLabel+(card ? ", here: "+stageName(card.stage) : "");
-        return '<span class="tile-item'+(g.type==="radical" ? " vocab" : "")+'"'
+        return '<span class="tile-item'+(g.type==="radical" ? " radical" : "")+'"'
           + (appG ? ' data-g="'+appG+'"' : '')
           + ' data-tip="'+esc(tip)+'"'
           + '>'+esc(disp)+'</span>';
@@ -2889,9 +2938,13 @@ function renderWkLevel(items){
   const histRows = Object.keys(byLevel).map(Number).sort((a,b)=>a-b).map(lv=>{
     const its = byLevel[lv];
     const g = its.filter(it=>it.s.wkStage>=5).length;
+    const histCounts = {};
+    for(const it of its){
+      const grp = wkStageGroup(it.s.wkStage); // always started here, so never locked/lesson
+      histCounts[grp] = (histCounts[grp]||0) + 1;
+    }
     return '<div class="levelrow"><span class="lv">lv '+lv+'</span>'
-      + '<div class="lbar"><i style="flex:'+(g||0.0001)+' 0 0;background:var(--s-guru)"></i>'
-      + '<i style="flex:'+((its.length-g)||0.0001)+' 0 0;background:var(--grid-hair)"></i></div>'
+      + '<div class="lbar">'+wkLevelSegs(histCounts,"i")+'</div>'
       + '<span class="lnum">'+g+' / '+its.length+'</span></div>';
   }).join("");
 
@@ -3097,14 +3150,16 @@ function stageGroup(stage){
    taxonomy, but reusing the app's own stage colors (not WK's brand
    colors) so the WaniKani tab still looks like the rest of the app. */
 const WK_GROUPS = [
+  ["lesson",      "Lesson",      "var(--s-lesson)",      "var(--ink-on-accent)"],
   ["apprentice",  "Apprentice",  "var(--s-apprentice)",  "var(--paper)"],
-  ["guru",        "Guru",        "var(--s-guru)",        "var(--s-guru-text)"],
-  ["master",      "Master",      "var(--s-master)",      "var(--ink-on-accent)"],
+  ["guru",        "Guru",        "var(--s-guru)",        "var(--ink-on-accent)"],
+  ["master",      "Master",      "var(--s-master)",      "var(--paper)"],
   ["enlightened", "Enlightened", "var(--s-enlightened)", "var(--paper)"],
   ["burned",      "Burned",      "var(--s-burned)",      "var(--paper)"]
 ];
 const WK_GROUP_LABEL = Object.fromEntries(WK_GROUPS.map(g=>[g[0], g[1]]));
 function wkStageGroup(stage){
+  if(stage === 0) return "lesson";
   if(stage <= 4) return "apprentice";
   if(stage <= 6) return "guru";
   if(stage === 7) return "master";
