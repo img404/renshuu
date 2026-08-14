@@ -2099,6 +2099,17 @@ async function sync(){
     }
     if(!wantIds.length) throw new Error("No started kanji found — do some WaniKani lessons first.");
 
+    // Account-wide "in lesson" (unlocked, not yet started) counts, for
+    // the WaniKani tab's SRS-distribution Lesson bucket — the fetch
+    // above only ever asks for started=true, so it can't see these on
+    // its own. Only a kanji/vocab split is needed here, not full
+    // subject details, so this is a light request that never touches
+    // SUBJ.
+    setStatus(st, who+"Loading lesson queue…");
+    const lessonAsg = await wkAll(WK+"assignments?subject_types="+types+"&unlocked=true&started=false", token, ()=>{});
+    const lessonCounts = {k:0, v:0};
+    for(const a of lessonAsg) lessonCounts[a.data.subject_type==="vocabulary" ? "v" : "k"]++;
+
     // Current-level gating detail, for the WaniKani tab's level-progress
     // subtab: every radical and kanji assignment for the level you're
     // *on right now*, unfiltered by started/unlocked — unlike the fetch
@@ -2205,7 +2216,7 @@ async function sync(){
         passedAt: r.data.passed_at || null
       })).sort((a,b)=> a.level-b.level);
 
-    S.meta = {...S.meta, username:uname, level:ulevel, lastSync:now(), demo:false, levelHistory, levelGating};
+    S.meta = {...S.meta, username:uname, level:ulevel, lastSync:now(), demo:false, levelHistory, levelGating, lessonCounts};
     await saveNow();
     renderCounts(); renderDataSummary();
     if(!$("#v-wk").hidden) renderWK();
@@ -2782,16 +2793,14 @@ function renderWkSrs(items){
     const g = wkStageGroup(it.s.wkStage);
     tot[g]++; kv[g][it.vocab ? "v" : "k"]++;
   }
-  // "Lesson" (wkStage 0, unlocked but not started) is invisible to the
-  // normal sync, which only ever asks for started=true assignments —
-  // the only place with visibility into not-started items is the
-  // current level's gating detail. So this bucket, unlike every other
-  // one on this subtab, is current-level only rather than account-wide
-  // — the intro copy below says so.
-  const lessonKanji = (S.meta.levelGating || [])
-    .filter(g=>g.type==="kanji" && g.srsStage===0 && g.unlockedAt).length;
-  tot.lesson = lessonKanji;
-  kv.lesson = {k: lessonKanji, v: 0};
+  // "Lesson" (wkStage 0, unlocked but not started) needs its own fetch
+  // in sync() — assignments?unlocked=true&started=false — since the
+  // main started=true fetch never sees these. Account-wide, same as
+  // every other bucket here, stored as a plain {k,v} count (no subject
+  // detail needed just to size a bucket).
+  const lc = S.meta.lessonCounts || {k:0, v:0};
+  tot.lesson = lc.k + lc.v;
+  kv.lesson = {k: lc.k, v: lc.v};
   const bar = WK_GROUPS.map(([k,,col])=>{
     const note = kvNote(kv[k].k, kv[k].v);
     return '<div style="flex:'+(tot[k]||0.0001)+' 0 0;background:'+col+'"'
@@ -2799,7 +2808,7 @@ function renderWkSrs(items){
   }).join("");
   const legend = WK_GROUPS.map(([k,label,col])=>
     '<span><i style="background:'+col+'"></i>'+label+' '+tot[k]+'</span>').join("");
-  const total = items.length + lessonKanji;
+  const total = items.length + tot.lesson;
   const burnedPct = total ? Math.round(tot.burned/total*100) : 0;
   const tiles = tile(total,"Total items")
     + tile(tot.lesson,"Lesson") + tile(tot.apprentice,"Apprentice") + tile(tot.guru,"Guru")
@@ -2808,7 +2817,7 @@ function renderWkSrs(items){
   const lastSync = S.meta.lastSync ? " ("+new Date(S.meta.lastSync).toLocaleDateString(undefined,{month:"short",day:"numeric"})+")" : "";
   $("#wk-srs").innerHTML =
     '<h2>SRS distribution</h2>'
-    + '<p class="muted">Real WaniKani stage as of the last sync'+lastSync+' — separate from the writing-practice progress tracked elsewhere in this app. See App vs WaniKani for how the two compare. Lesson only counts the current level (that is the only place this app can see not-yet-started items); every other bucket is account-wide.</p>'
+    + '<p class="muted">Real WaniKani stage as of the last sync'+lastSync+' — separate from the writing-practice progress tracked elsewhere in this app. See App vs WaniKani for how the two compare.</p>'
     + '<div class="stagebar">'+bar+'</div>'
     + '<div class="legend">'+legend+'</div>'
     + '<div class="tiles" style="margin-top:14px">'+tiles+'</div>';
