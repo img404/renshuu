@@ -2929,7 +2929,12 @@ function renderWkLevel(items){
   const progressBar = '<div class="stagebar" style="height:20px">'+wkLevelSegs(curCounts,"div",curKV)+'</div>';
   const statLine = '<p class="muted" style="margin-top:6px">'+kanjiGuru+' out of '+kanji.length+' kanji at Guru level; need '+required+' to level up.</p>';
 
-  const gatingItems = [...radicals, ...kanji].filter(g=>g.srsStage<5)
+  // No stage filtering here — every radical and kanji at this level
+  // shows, always. Gating is conveyed entirely by fill color (locked/
+  // lesson/apprentice vs guru+), not by whether an item is present at
+  // all, so the list reads as "the whole level" and nothing seems to
+  // vanish as items progress.
+  const gatingItems = [...radicals, ...kanji]
     .sort((a,b)=> (a.type===b.type ? 0 : (a.type==="radical" ? -1 : 1)) || a.srsStage-b.srsStage);
   const gatingList = gatingItems.length
     ? '<div class="igrid" style="margin-top:10px">'+gatingItems.map(g=>{
@@ -2974,7 +2979,7 @@ function renderWkLevel(items){
     + progressBar
     + statLine
     + '<h2 style="margin-top:28px">Items gating level-up</h2>'
-    + '<p class="muted">Apprentice radicals, plus locked, in-lesson, and Apprentice kanji at this level. Radicals with no character of their own (WaniKani represents some with an image instead) show their meaning in brackets.</p>'
+    + '<p class="muted">Every radical (circle) and kanji (square) at this level — fill color shows WK status, so what\'s still gating level-up is whatever isn\'t Guru+ yet. Radicals with no character of their own (WaniKani represents some with an image instead) show their meaning in brackets.</p>'
     + gatingList
     + (histRows ? '<h2 style="margin-top:28px">Earlier levels</h2><div class="levels">'+histRows+'</div>' : "");
 }
