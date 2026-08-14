@@ -715,6 +715,10 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 <!-- ══ WANIKANI ═══════════════════════════════════ -->
 <section class="view" id="v-wk" hidden>
   <h1>WaniKani</h1>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn primary" id="btn-wk-sync">Quick sync</button>
+  </div>
+  <div class="status" id="wk-sync-status" hidden></div>
   <p class="muted" id="wk-empty">Nothing synced from WaniKani yet — connect an account in Setup first.</p>
 
   <div id="wk-body" hidden>
@@ -765,7 +769,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   <label class="field">
     <span class="lbl">Personal access token</span>
     <input type="password" id="in-token" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
-    <span class="hint">Read-only token from <a href="https://www.wanikani.com/settings/personal_access_tokens" target="_blank" rel="noopener">wanikani.com/settings/personal_access_tokens</a>. Stored on this device only. Pulls items you've started; nothing is written back.</span>
+    <span class="hint">Read-only token from <a href="https://www.wanikani.com/settings/personal_access_tokens" target="_blank" rel="noopener">wanikani.com/settings/personal_access_tokens</a>. Stored on this device only; nothing is written back to WaniKani. Pulls items you've started (for writing practice here), plus your current level's radicals and gating detail, lesson queue, and level-up history (for the WaniKani tab).</span>
   </label>
   <div class="row" style="justify-content:flex-start">
     <button class="btn primary" id="btn-sync">Sync from WaniKani</button>
@@ -2071,10 +2075,14 @@ function packSubject(d, type){
   return o;
 }
 
-async function sync(){
-  const st = $("#sync-status"), btn = $("#btn-sync");
+async function sync(stSel, btnSel){
+  // Defaults are Setup's own button/status; the WaniKani tab's "Quick
+  // sync" button calls this the exact same way, just pointed at its own
+  // pair, so both places show live progress instead of one going quiet
+  // while the other one runs.
+  const st = $(stSel || "#sync-status"), btn = $(btnSel || "#btn-sync");
   const token = $("#in-token").value.trim();
-  if(!token){ setStatus(st,"Enter your personal access token first.",true); return; }
+  if(!token){ setStatus(st,"Enter your personal access token in Setup first.",true); return; }
   const wantVocab = !!S.settings.vocab;
   btn.disabled=true;
   try{
@@ -2223,6 +2231,9 @@ async function sync(){
 
     let head = "Synced.\n"+nK+" started kanji"+(addedK?" · "+addedK+" new":"");
     if(wantVocab) head += "\n"+nV+" vocabulary"+(addedV?" · "+addedV+" new":"")+" — released as their kanji reach Guru here";
+    const lessonTotal = lessonCounts.k + lessonCounts.v;
+    head += "\nLevel "+ulevel+" gating detail, "+levelHistory.length+" level"+(levelHistory.length===1?"":"s")
+      +" of pace history, "+lessonTotal+" item"+(lessonTotal===1?"":"s")+" in your lesson queue — see the WaniKani tab.";
     head += "\n";
 
     const chars = [];
@@ -2242,7 +2253,8 @@ async function sync(){
     setStatus(st, err.message||String(err), true);
   }finally{ btn.disabled=false; }
 }
-$("#btn-sync").onclick = sync;
+$("#btn-sync").onclick = ()=>sync();
+$("#btn-wk-sync").onclick = ()=>sync("#wk-sync-status", "#btn-wk-sync");
 
 /* ═══════════════════════════════════════════════════════════════
    Demo deck (approximate WaniKani-style keywords, levels 1–3)
