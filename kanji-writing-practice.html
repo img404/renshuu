@@ -458,6 +458,7 @@ input[type=range]{width:100%;accent-color:var(--grid);padding:0;background:none;
    dark, so --paper (which itself flips light/dark per theme) reads well
    on all three. Trainee's mid-tone teal is the odd one out — see
    --s-trainee-text above. */
+.tile-item[data-g="locked"]{background:var(--grid-hair);border-color:transparent;color:var(--ink-soft)}
 .tile-item[data-g="lesson"]{background:var(--paper);border-style:dashed;color:var(--ink-soft)}
 .tile-item[data-g="trainee"]{background:var(--s-trainee);border-color:transparent;color:var(--s-trainee-text)}
 .tile-item[data-g="apprentice"]{background:var(--s-apprentice);border-color:transparent;color:var(--paper)}
@@ -2881,17 +2882,23 @@ const WK_LEVEL_GROUPS = [
   ["enlightened", "Enlightened", "var(--s-enlightened)"],
   ["burned",      "Burned",      "var(--s-burned)"]
 ];
+const WK_LEVEL_LABEL = Object.fromEntries(WK_LEVEL_GROUPS.map(g=>[g[0], g[1]]));
 /* Stacked composition segments, same spirit as the Items page's own
    composition bar — each SRS stage its own color, each with a hover
    tooltip, instead of a flat guru/not-guru split. tag is "div" for the
    prominent current-level bar (matching #i-bar, which also gets a
    flex-grow transition from that tag) or "i" for the compact per-level
-   history rows (matching .lbar elsewhere). */
-function wkLevelSegs(counts, tag){
-  return WK_LEVEL_GROUPS.map(([k,label,col])=>
-    counts[k] ? '<'+tag+' style="flex:'+counts[k]+' 0 0;background:'+col+'"'
-      + ' data-tip="'+esc(label+' '+counts[k])+'"></'+tag+'>' : ""
-  ).join("");
+   history rows (matching .lbar elsewhere). kv, when passed, breaks each
+   segment's tooltip down into radicals vs kanji — same kvNote pattern
+   the forecast charts use for kanji vs vocab. */
+function wkLevelSegs(counts, tag, kv){
+  return WK_LEVEL_GROUPS.map(([k,label,col])=>{
+    if(!counts[k]) return "";
+    const c = kv && kv[k];
+    const note = c ? kvNote(c.k, c.r, "radical") : "";
+    return '<'+tag+' style="flex:'+counts[k]+' 0 0;background:'+col+'"'
+      + ' data-tip="'+esc(label+' '+counts[k]+(note ? " ("+note+")" : ""))+'"></'+tag+'>';
+  }).join("");
 }
 function renderWkLevel(items){
   const curLevel = S.meta.level || 0;
@@ -2908,13 +2915,18 @@ function renderWkLevel(items){
 
   // The bar shows everything at this level — radicals and kanji both —
   // so it reads as "the whole level," not just the kanji subset that
-  // happens to gate advancement.
-  const curCounts = {};
+  // happens to gate advancement. curKV tracks the kanji/radical split
+  // within each segment for the tooltip, same idea as the forecast
+  // charts' kanji-vs-vocab breakdown.
+  const wkGroupOf = g => !g.unlockedAt ? "locked" : g.srsStage===0 ? "lesson" : wkStageGroup(g.srsStage);
+  const curCounts = {}, curKV = {};
   for(const g of [...radicals, ...kanji]){
-    const grp = !g.unlockedAt ? "locked" : g.srsStage===0 ? "lesson" : wkStageGroup(g.srsStage);
+    const grp = wkGroupOf(g);
     curCounts[grp] = (curCounts[grp]||0) + 1;
+    curKV[grp] = curKV[grp] || {k:0, r:0};
+    curKV[grp][g.type==="radical" ? "r" : "k"]++;
   }
-  const progressBar = '<div class="stagebar" style="height:20px">'+wkLevelSegs(curCounts,"div")+'</div>';
+  const progressBar = '<div class="stagebar" style="height:20px">'+wkLevelSegs(curCounts,"div",curKV)+'</div>';
   const statLine = '<p class="muted" style="margin-top:6px">'+kanjiGuru+' out of '+kanji.length+' kanji at Guru level; need '+required+' to level up.</p>';
 
   const gatingItems = [...radicals, ...kanji].filter(g=>g.srsStage<5)
@@ -2922,14 +2934,16 @@ function renderWkLevel(items){
   const gatingList = gatingItems.length
     ? '<div class="igrid" style="margin-top:10px">'+gatingItems.map(g=>{
         const s = SUBJ[g.id] || {};
-        const card = S.cards[g.id];
-        const appG = card ? stageGroup(card.stage) : null;
-        const wkLabel = g.type==="radical" ? "Radical"
-          : (!g.unlockedAt ? "Locked" : g.startedAt ? "Apprentice" : "In lessons");
+        // Colored by WK status here, not by progress in this app's own
+        // writing practice — this tab is about WaniKani, and the two
+        // ladders use overlapping color language (rust/gold/etc.) that
+        // would otherwise look like it means one thing and actually
+        // mean the other.
+        const wkG = wkGroupOf(g);
         const disp = s.ch || (s.primary ? "["+s.primary+"]" : "?");
-        const tip = (s.primary||"?")+" — WK: "+wkLabel+(card ? ", here: "+stageName(card.stage) : "");
+        const tip = (s.primary||"?")+" — "+(g.type==="radical" ? "Radical, " : "")+WK_LEVEL_LABEL[wkG];
         return '<span class="tile-item'+(g.type==="radical" ? " radical" : "")+'"'
-          + (appG ? ' data-g="'+appG+'"' : '')
+          + ' data-g="'+wkG+'"'
           + ' data-tip="'+esc(tip)+'"'
           + '>'+esc(disp)+'</span>';
       }).join("")+'</div>'
@@ -3194,11 +3208,16 @@ function esc(x){ return String(x==null?"":x).replace(/[&<>"]/g, m=>({"&":"&amp;"
 /* "0 kanji" / "0 vocab" is noise — only mention the types actually
    present, and skip the parenthetical entirely when there's nothing
    to break down (e.g. the bucket is empty, or the type filter has
-   already reduced it to one kind). */
-function kvNote(k, v){
-  if(k && v) return k+" kanji · "+v+" vocab";
+   already reduced it to one kind). vLabel defaults to "vocab" (every
+   existing caller, never pluralized there — matches how this app has
+   always written it); the WaniKani tab passes "radical" to reuse this
+   for its own kanji-vs-radical breakdown, pluralized since "radical"
+   reads oddly as a collective noun the way "vocab" does. */
+function kvNote(k, v, vLabel){
+  const vWord = vLabel ? vLabel+(v===1?"":"s") : "vocab";
+  if(k && v) return k+" kanji · "+v+" "+vWord;
   if(k) return k+" kanji";
-  if(v) return v+" vocab";
+  if(v) return v+" "+vWord;
   return "";
 }
 /* The two composition bars ("Everything in your deck" and "By WaniKani
