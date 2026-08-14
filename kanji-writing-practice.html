@@ -2901,35 +2901,21 @@ function renderWkLevel(items){
       + '<p class="muted">No current-level detail yet — run Sync from WaniKani again to fetch it (needs a sync from after level-progress tracking was added to this app).</p>';
     return;
   }
-  const gatingById = Object.fromEntries(gating.map(g=>[g.id, g]));
   const radicals = gating.filter(g=>g.type==="radical");
   const kanji = gating.filter(g=>g.type==="kanji");
   const kanjiGuru = kanji.filter(g=>g.srsStage>=5).length;
   const required = Math.ceil(kanji.length * 0.9);
-  const stillNeeded = Math.max(0, required - kanjiGuru);
-  const pct = kanji.length ? Math.round(kanjiGuru/kanji.length*100) : 0;
 
+  // The bar shows everything at this level — radicals and kanji both —
+  // so it reads as "the whole level," not just the kanji subset that
+  // happens to gate advancement.
   const curCounts = {};
-  for(const g of kanji){
+  for(const g of [...radicals, ...kanji]){
     const grp = !g.unlockedAt ? "locked" : g.srsStage===0 ? "lesson" : wkStageGroup(g.srsStage);
     curCounts[grp] = (curCounts[grp]||0) + 1;
   }
   const progressBar = '<div class="stagebar" style="height:20px">'+wkLevelSegs(curCounts,"div")+'</div>';
-
-  let etaLine;
-  if(stillNeeded === 0){
-    etaLine = '<p class="muted" style="margin-top:6px">Requirement met — '+kanjiGuru+' of '+required+' needed kanji are at Guru or above. If the level has not advanced yet, sync again to refresh.</p>';
-  } else {
-    const notGuru = kanji.filter(g=>g.srsStage<5)
-      .map(g=>Object.assign({}, g, {eta: wkItemBestCaseSec(g, gatingById)}))
-      .sort((a,b)=>a.eta-b.eta);
-    const etaSec = notGuru[stillNeeded-1] ? notGuru[stillNeeded-1].eta : null;
-    etaLine = '<p class="muted" style="margin-top:6px">'+kanjiGuru+' of '+required+' needed kanji ('+pct+'% of '+kanji.length+' total). '
-      + (etaSec!=null
-          ? stillNeeded+' more kanji needed — earliest possible level-up '+fmtCountdown(etaSec*1000)+' from now, if every remaining review goes well and lessons happen right away.'
-          : stillNeeded+' more kanji needed.')
-      + '</p>';
-  }
+  const statLine = '<p class="muted" style="margin-top:6px">'+kanjiGuru+' out of '+kanji.length+' kanji at Guru level; need '+required+' to level up.</p>';
 
   const gatingItems = [...radicals, ...kanji].filter(g=>g.srsStage<5)
     .sort((a,b)=> (a.type===b.type ? 0 : (a.type==="radical" ? -1 : 1)) || a.srsStage-b.srsStage);
@@ -2971,9 +2957,8 @@ function renderWkLevel(items){
 
   $("#wk-level").innerHTML =
     '<h2>Level progress</h2>'
-    + '<p class="muted">Level '+curLevel+' needs '+required+' of its '+kanji.length+' kanji at Guru or above to advance (90%, rounded up). Radicals do not gate the level directly, but a locked radical blocks its kanji from unlocking.</p>'
     + progressBar
-    + etaLine
+    + statLine
     + '<h2 style="margin-top:28px">Items gating level-up</h2>'
     + '<p class="muted">Apprentice radicals, plus locked, in-lesson, and Apprentice kanji at this level. Radicals with no character of their own (WaniKani represents some with an image instead) show their meaning in brackets.</p>'
     + gatingList
