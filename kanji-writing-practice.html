@@ -177,6 +177,14 @@ input,select{font:inherit;color:inherit}
 }
 .navlinks button[aria-current="true"]{color:var(--ink);box-shadow:inset 0 -1px 0 var(--grid)}
 
+/* ── setup subtabs ────────────────────────────── */
+.subtabs{display:flex;gap:18px;margin:20px 0 8px;border-bottom:1px solid var(--grid-hair)}
+.subtabs button{
+  font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);
+  padding:0 0 10px;
+}
+.subtabs button[aria-current="true"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--grid)}
+
 /* ── layout ───────────────────────────────────── */
 main{max-width:820px;margin:0 auto;padding:clamp(20px,5vw,52px) clamp(16px,4vw,32px) 96px}
 .view[hidden]{display:none}
@@ -519,7 +527,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
    tap-and-hold on one of them can trigger the browser's text-selection
    handles or a callout menu instead of just showing its tooltip —
    user-select:none stops that. */
-.btn,.grade,.navlinks button,.tile-item,.undo,.masu,
+.btn,.grade,.navlinks button,.subtabs button,.tile-item,.undo,.masu,
 .heat i,.chart .bar,.stagebar div,.levelrow .lbar i{
   touch-action:manipulation; -webkit-user-select:none; user-select:none;
 }
@@ -535,6 +543,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   /* The primary nav was sized for a pointer that lands on an exact
      pixel; a thumb needs more like 44px of tappable height. */
   .navlinks button{padding:12px 12px}
+  .subtabs button{padding-top:10px;padding-bottom:14px}
   /* Keyboard-only hints (key names, "press X to do Y") have no
      equivalent action on a device with no keyboard — every one of them
      duplicates a button or gesture that's already on screen. */
@@ -706,6 +715,31 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
 <section class="view panel" id="v-setup" hidden>
   <h1>Setup</h1>
 
+  <nav class="subtabs" id="setup-subtabs">
+    <button data-subtab="sync" aria-current="true">Sync &amp; data</button>
+    <button data-subtab="prefs">Preferences</button>
+  </nav>
+
+  <div class="subtab-page" id="setup-sync">
+  <h2>Sync across devices</h2>
+  <p class="muted">Progress syncs through a private GitHub Gist, manually — nothing pushes or pulls on its own. On your first device, paste a token and leave the Gist ID blank, then click Push — that creates the gist and fills in the ID here. Paste that same ID (with its own token) into this field on every other device, then Pull there to bring the deck over.</p>
+  <label class="field">
+    <span class="lbl">GitHub personal access token</span>
+    <input type="password" id="in-sync-token" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false">
+    <span class="hint">Create one at <a href="https://github.com/settings/tokens/new?scopes=gist&description=Kanji+writing+practice+sync" target="_blank" rel="noopener">github.com/settings/tokens</a> — that link pre-checks the single <b>gist</b> scope, nothing broader. Stored on this device only, never included in an exported backup.</span>
+  </label>
+  <label class="field">
+    <span class="lbl">Gist ID</span>
+    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first push" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+    <span class="hint">The same ID on every device is what links them. Leave this blank the very first time.</span>
+  </label>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn primary" id="btn-sync-push">Push</button>
+    <button class="btn primary" id="btn-sync-pull">Pull</button>
+  </div>
+  <div class="status" id="gh-sync-status" hidden></div>
+  <p class="muted">Push sends this device's progress to GitHub, overwriting what's there. Pull brings GitHub's copy here, overwriting this device's. Each one checks the other side's save time first and asks you to confirm before overwriting anything that looks newer — so it's on you to pick the right direction, not a timestamp race.</p>
+
   <h2>WaniKani connection</h2>
   <label class="field">
     <span class="lbl">Personal access token</span>
@@ -718,26 +752,45 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   </div>
   <div class="status" id="sync-status" hidden></div>
 
-  <h2>Scheduling</h2>
-  <p class="muted">1 h · 2 h · 4 h · 8 h · 23 h · 47 h · 1 wk · 2 wk · 1 mo · 4 mo. Correct moves up one stage; incorrect drops one from Apprentice, two from Guru up. Partial holds, twice in a row demotes.</p>
-  <label class="toggle"><input type="checkbox" id="in-burn"> Retire items at Burned</label>
+  <h2>Your data</h2>
+  <p class="muted" id="data-summary"></p>
   <div class="row" style="justify-content:flex-start">
-    <button class="btn" id="btn-resurrect">Resurrect burned items</button>
+    <button class="btn" id="btn-export">Export backup</button>
+    <button class="btn" id="btn-import">Import backup</button>
+    <button class="btn danger" id="btn-reset">Erase all progress</button>
+  </div>
+  <input type="file" id="file-import" accept="application/json" hidden>
+  <div class="status" id="data-status" hidden></div>
   </div>
 
-  <h2>Vocabulary</h2>
-  <label class="toggle"><input type="checkbox" id="in-vocab"> Include WaniKani vocabulary</label>
-  <p class="muted">Prompted by reading and meaning; you write the kanji form. Kana-only words are skipped. A word unlocks once every kanji in it reaches Guru here.</p>
-  <label class="field">
-    <span class="lbl">New words enter at</span>
-    <select id="in-vocabstart">
-      <option value="1">Trainee I — 1 h (same as kanji)</option>
-      <option value="3">Apprentice I — 4 h</option>
-      <option value="5">Apprentice III — next day</option>
-      <option value="6">Apprentice IV — 2 days</option>
-    </select>
-    <span class="hint">Higher entry skips the same-day repetition.</span>
-  </label>
+  <div class="subtab-page" id="setup-prefs" hidden>
+  <h2>Stroke order</h2>
+  <label class="toggle"><input type="checkbox" id="in-stroke"> Redraw stroke by stroke after the reveal</label>
+  <label class="toggle"><input type="checkbox" id="in-tapreplay"> Tap the character to replay strokes</label>
+  <p class="muted">Each replay on the same card gets slower — 80% speed, then 60%, then 40%, then it stays there — so you can watch closely without hunting for the speed slider. The next card starts back at full speed. Applies to the replay button and <kbd class="kbd-only">R</kbd> too, not just tapping.</p>
+  <div class="inline">
+    <label class="field">
+      <span class="lbl">Hold before redrawing</span>
+      <input type="number" id="in-strokedelay" min="0" max="15" step="0.5">
+      <span class="hint">Seconds.</span>
+    </label>
+    <label class="field">
+      <span class="lbl">Speed — <span id="speedval">3×</span></span>
+      <input type="range" id="in-strokespeed" min="0.25" max="10" step="0.25">
+      <span class="hint kbd-only">Press <kbd>R</kbd> to replay.</span>
+    </label>
+  </div>
+  <div class="row" style="justify-content:flex-start">
+    <button class="btn" id="btn-fetchStrokes">Download stroke data for my deck</button>
+    <button class="btn" id="btn-testStroke">Test connection</button>
+  </div>
+  <div class="status" id="stroke-status" hidden></div>
+  <p class="muted">Stroke paths from <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noopener">KanjiVG</a>, CC BY-SA 3.0. Cached after first download.</p>
+
+  <h2>Display</h2>
+  <label class="toggle"><input type="checkbox" id="in-alts"> Show alternative meanings on the prompt</label>
+  <label class="toggle"><input type="checkbox" id="in-readings"> Show readings on reveal</label>
+  <label class="toggle"><input type="checkbox" id="in-dark"> Dark mode</label>
 
   <h2>Daily limits</h2>
   <div class="inline">
@@ -768,65 +821,30 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
     </select>
   </label>
 
-  <h2>Stroke order</h2>
-  <label class="toggle"><input type="checkbox" id="in-stroke"> Redraw stroke by stroke after the reveal</label>
-  <label class="toggle"><input type="checkbox" id="in-tapreplay"> Tap the character to replay strokes</label>
-  <p class="muted">Each replay on the same card gets slower — 80% speed, then 60%, then 40%, then it stays there — so you can watch closely without hunting for the speed slider. The next card starts back at full speed. Applies to the replay button and <kbd class="kbd-only">R</kbd> too, not just tapping.</p>
-  <div class="inline">
-    <label class="field">
-      <span class="lbl">Hold before redrawing</span>
-      <input type="number" id="in-strokedelay" min="0" max="15" step="0.5">
-      <span class="hint">Seconds.</span>
-    </label>
-    <label class="field">
-      <span class="lbl">Speed — <span id="speedval">3×</span></span>
-      <input type="range" id="in-strokespeed" min="0.25" max="10" step="0.25">
-      <span class="hint kbd-only">Press <kbd>R</kbd> to replay.</span>
-    </label>
-  </div>
-  <div class="row" style="justify-content:flex-start">
-    <button class="btn" id="btn-fetchStrokes">Download stroke data for my deck</button>
-    <button class="btn" id="btn-testStroke">Test connection</button>
-  </div>
-  <div class="status" id="stroke-status" hidden></div>
-  <p class="muted">Stroke paths from <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noopener">KanjiVG</a>, CC BY-SA 3.0. Cached after first download.</p>
-
-  <h2>Display</h2>
-  <label class="toggle"><input type="checkbox" id="in-alts"> Show alternative meanings on the prompt</label>
-  <label class="toggle"><input type="checkbox" id="in-readings"> Show readings on reveal</label>
-  <label class="toggle"><input type="checkbox" id="in-dark"> Dark mode</label>
-
-  <h2>Your data</h2>
-  <p class="muted" id="data-summary"></p>
-  <div class="row" style="justify-content:flex-start">
-    <button class="btn" id="btn-export">Export backup</button>
-    <button class="btn" id="btn-import">Import backup</button>
-    <button class="btn danger" id="btn-reset">Erase all progress</button>
-  </div>
-  <input type="file" id="file-import" accept="application/json" hidden>
-  <div class="status" id="data-status" hidden></div>
-
-  <h2>Sync across devices</h2>
-  <p class="muted">Progress syncs through a private GitHub Gist, manually — nothing pushes or pulls on its own. On your first device, paste a token and leave the Gist ID blank, then click Push — that creates the gist and fills in the ID here. Paste that same ID (with its own token) into this field on every other device, then Pull there to bring the deck over.</p>
+  <h2>Vocabulary</h2>
+  <label class="toggle"><input type="checkbox" id="in-vocab"> Include WaniKani vocabulary</label>
+  <p class="muted">Prompted by reading and meaning; you write the kanji form. Kana-only words are skipped. A word unlocks once every kanji in it reaches Guru here.</p>
   <label class="field">
-    <span class="lbl">GitHub personal access token</span>
-    <input type="password" id="in-sync-token" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false">
-    <span class="hint">Create one at <a href="https://github.com/settings/tokens/new?scopes=gist&description=Kanji+writing+practice+sync" target="_blank" rel="noopener">github.com/settings/tokens</a> — that link pre-checks the single <b>gist</b> scope, nothing broader. Stored on this device only, never included in an exported backup.</span>
+    <span class="lbl">New words enter at</span>
+    <select id="in-vocabstart">
+      <option value="1">Trainee I — 1 h (same as kanji)</option>
+      <option value="3">Apprentice I — 4 h</option>
+      <option value="5">Apprentice III — next day</option>
+      <option value="6">Apprentice IV — 2 days</option>
+    </select>
+    <span class="hint">Higher entry skips the same-day repetition.</span>
   </label>
-  <label class="field">
-    <span class="lbl">Gist ID</span>
-    <input type="text" id="in-sync-gist" placeholder="filled in automatically after your first push" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
-    <span class="hint">The same ID on every device is what links them. Leave this blank the very first time.</span>
-  </label>
+
+  <h2>Scheduling</h2>
+  <p class="muted">1 h · 2 h · 4 h · 8 h · 23 h · 47 h · 1 wk · 2 wk · 1 mo · 4 mo. Correct moves up one stage; incorrect drops one from Apprentice, two from Guru up. Partial holds, twice in a row demotes.</p>
+  <label class="toggle"><input type="checkbox" id="in-burn"> Retire items at Burned</label>
   <div class="row" style="justify-content:flex-start">
-    <button class="btn primary" id="btn-sync-push">Push</button>
-    <button class="btn primary" id="btn-sync-pull">Pull</button>
+    <button class="btn" id="btn-resurrect">Resurrect burned items</button>
   </div>
-  <div class="status" id="gh-sync-status" hidden></div>
-  <p class="muted">Push sends this device's progress to GitHub, overwriting what's there. Pull brings GitHub's copy here, overwriting this device's. Each one checks the other side's save time first and asks you to confirm before overwriting anything that looks newer — so it's on you to pick the right direction, not a timestamp race.</p>
 
   <h2>Keyboard</h2>
   <p class="muted kbd-only"><kbd>Space</kbd> reveal, then correct · <kbd>1</kbd> incorrect · <kbd>2</kbd> partial · <kbd>3</kbd> correct · <kbd>U</kbd> undo · <kbd>M</kbd> mnemonic · <kbd>R</kbd> replay</p>
+  </div>
 </section>
 
 </main>
@@ -3013,10 +3031,22 @@ function go(name){
     // under you, so an unanswered one is kept.
     if(current) renderCounts(); else showCard();
   }
-  if(name==="setup") renderDataSummary();
+  if(name==="setup"){ renderDataSummary(); goSubtab("sync"); }
   window.scrollTo(0,0);
 }
 document.querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=> go(b.dataset.go));
+
+/* Setup's own sub-navigation — sync/data vs. preferences. go() calls
+   this with "sync" every time Setup is opened, so it always lands there
+   first regardless of what was showing last visit. */
+function goSubtab(name){
+  document.querySelectorAll("#setup-subtabs button").forEach(b=>{
+    const active = b.dataset.subtab === name;
+    b.setAttribute("aria-current", String(active));
+    $("#setup-"+b.dataset.subtab).hidden = !active;
+  });
+}
+document.querySelectorAll("#setup-subtabs button").forEach(b=> b.onclick = ()=> goSubtab(b.dataset.subtab));
 
 /* ═══════════════════════════════════════════════════════════════
    Boot
