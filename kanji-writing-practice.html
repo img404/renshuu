@@ -565,6 +565,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
     <button data-go="review" aria-current="true">Practice</button>
     <button data-go="items">Items</button>
     <button data-go="stats">Stats</button>
+    <button data-go="wk">WaniKani</button>
     <button data-go="setup">Setup</button>
   </nav>
 </div>
@@ -709,6 +710,26 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--grid-line);bor
   <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--grid-hair)">Hardest to write</h2>
   <p class="muted" id="leech-note">Kanji you've forgotten the most times. Worth a dedicated page in your notebook.</p>
   <div class="table-wrap"><table class="leech" id="leech"></table></div>
+</section>
+
+<!-- ══ WANIKANI ═══════════════════════════════════ -->
+<section class="view panel" id="v-wk" hidden>
+  <h1>WaniKani</h1>
+  <p class="muted" id="wk-empty">Nothing synced from WaniKani yet — connect an account in Setup first.</p>
+
+  <div id="wk-body" hidden>
+  <nav class="subtabs" id="wk-subtabs">
+    <button data-subtab="srs" aria-current="true">SRS distribution</button>
+    <button data-subtab="level">Level progress</button>
+    <button data-subtab="compare">App vs WaniKani</button>
+    <button data-subtab="pace">Level pace</button>
+  </nav>
+
+  <div class="subtab-page" id="wk-srs"></div>
+  <div class="subtab-page" id="wk-level" hidden></div>
+  <div class="subtab-page" id="wk-compare" hidden></div>
+  <div class="subtab-page" id="wk-pace" hidden></div>
+  </div>
 </section>
 
 <!-- ══ SETUP ═══════════════════════════════════ -->
@@ -2021,6 +2042,8 @@ const HAS_KANJI = /[\u4e00-\u9fff\u3400-\u4dbf]/;
 function packSubject(d, type){
   const ms = d.meanings || [];
   const prim = (ms.find(m=>m.primary)||ms[0]||{}).meaning || "";
+  // Radicals have no readings at all; kanji/vocabulary sometimes omit
+  // "readings" too depending on the endpoint, so this stays a safe [].
   const rds = (d.readings||[]).filter(r=>r.accepted_answer!==false);
   const o = {
     type, ch:d.characters, level:d.level, primary:prim,
@@ -2028,8 +2051,19 @@ function packSubject(d, type){
     readings: rds.map(r=>({r:r.reading, type:r.type||"", primary:!!r.primary})),
     url: d.document_url
   };
-  if(type === "kanji") o.mnemonic = stripTags(d.meaning_mnemonic);
-  else {
+  if(type === "kanji"){
+    o.mnemonic = stripTags(d.meaning_mnemonic);
+    // Needed to work out which radicals are gating a locked kanji, on
+    // the WaniKani tab's level-progress subtab.
+    o.components = d.component_subject_ids || [];
+  } else if(type === "radical"){
+    o.mnemonic = stripTags(d.meaning_mnemonic);
+    // Roughly 1 in 8 radicals has no unicode character at all — WK
+    // represents those with an image instead. This app doesn't fetch or
+    // render that image (a real character is what everywhere else here
+    // expects), so ch stays null and callers fall back to showing the
+    // meaning as text instead.
+  } else {
     // The prompt reading — what you'd be given in a 書き取り exercise.
     o.reading = (rds.find(r=>r.primary) || rds[0] || {}).reading || "";
     o.components = d.component_subject_ids || [];
@@ -2065,22 +2099,43 @@ async function sync(){
     }
     if(!wantIds.length) throw new Error("No started kanji found — do some WaniKani lessons first.");
 
+    // Current-level gating detail, for the WaniKani tab's level-progress
+    // subtab: every radical and kanji assignment for the level you're
+    // *on right now*, unfiltered by started/unlocked — unlike the fetch
+    // above, this also surfaces locked and in-lesson items, which is
+    // the whole point (seeing what's still blocking the next level).
+    // Scoped to one level so it stays a light, single-page fetch rather
+    // than pulling the whole account's assignments unfiltered.
+    setStatus(st, who+"Loading current-level detail…");
+    const curAsg = await wkAll(WK+"assignments?subject_types=radical,kanji&levels="+ulevel, token, ()=>{});
+    const levelGating = curAsg.map(a=>({
+      id: a.data.subject_id,
+      type: a.data.subject_type,
+      unlockedAt: a.data.unlocked_at,
+      startedAt: a.data.started_at,
+      srsStage: a.data.srs_stage || 0
+    }));
+    const gatingIds = levelGating.map(g=>g.id);
+
     // Subject details, fetched per type and cached. The completeness
-    // check has to cover every card already in the deck, not just
-    // wantIds (WK's *currently*-started list) — a card pulled in from
-    // another device (or one that fell out of "started" some other
-    // way) can sit in S.cards without a subject entry, and checking
-    // only wantIds would never notice the gap, skip the fetch, and
-    // leave that item showing as "(unknown)" forever.
-    const needSubjectsFor = Array.from(new Set([...wantIds, ...Object.keys(S.cards)]));
+    // check has to cover every card already in the deck and every
+    // current-level gating item, not just wantIds (WK's *currently*-
+    // started list) — a card pulled in from another device (or a locked/
+    // in-lesson item that has no started assignment yet) can be missing
+    // a subject entry, and checking only wantIds would never notice the
+    // gap, skip the fetch, and leave that item showing as "(unknown)"
+    // forever.
+    const needSubjectsFor = Array.from(new Set([...wantIds, ...Object.keys(S.cards), ...gatingIds]));
     // wantVocab (the "include vocabulary" toggle) is about whether *new*
     // vocab lessons should be introduced — it shouldn't stop existing
     // vocab cards already in the deck (e.g. pulled from another device)
     // from getting their subject filled in. So the type list always
     // includes vocabulary if there's a gap left after the kanji pass,
     // regardless of that toggle; wantVocab only decides whether we try
-    // it unconditionally up front.
-    const typesToFetch = wantVocab ? ["kanji","vocabulary"] : ["kanji"];
+    // it unconditionally up front. Radicals are always fetched — they're
+    // never added to the writing-practice deck (no stroke data exists
+    // for them), only used for the level-progress gating list.
+    const typesToFetch = ["radical","kanji", ...(wantVocab ? ["vocabulary"] : [])];
     for(const t of typesToFetch){
       const haveAllOfType = needSubjectsFor.every(id=>SUBJ[id]);
       if(haveAllOfType) continue;
@@ -2123,9 +2178,24 @@ async function sync(){
     }
     const nK = ids.filter(id=>SUBJ[id].type!=="vocabulary").length;
     const nV = ids.length - nK;
-    S.meta = {...S.meta, username:uname, level:ulevel, lastSync:now(), demo:false};
+
+    // Level-up history, for the WaniKani tab's pace subtab. This is
+    // account progression, not subject data, so it lives in S.meta
+    // (small, and rides along with everything else through save/
+    // export/gist sync already) rather than SUBJ. passed_at is null for
+    // the level currently in progress.
+    setStatus(st, who+"Loading level history…");
+    const lp = await wkAll(WK+"level_progressions", token, ()=>{});
+    const levelHistory = lp.map(r=>({
+      level: r.data.level,
+      startedAt: r.data.created_at,
+      passedAt: r.data.passed_at || null
+    })).sort((a,b)=> a.level-b.level);
+
+    S.meta = {...S.meta, username:uname, level:ulevel, lastSync:now(), demo:false, levelHistory, levelGating};
     await saveNow();
     renderCounts(); renderDataSummary();
+    if(!$("#v-wk").hidden) renderWK();
 
     let head = "Synced.\n"+nK+" started kanji"+(addedK?" · "+addedK+" new":"");
     if(wantVocab) head += "\n"+nV+" vocabulary"+(addedV?" · "+addedV+" new":"")+" — released as their kanji reach Guru here";
@@ -2674,6 +2744,239 @@ function renderStats(){
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   WaniKani tab — real WK account data (SUBJ[id].wkStage, S.meta.level,
+   S.meta.levelHistory), as opposed to Stats/Items which are this app's
+   own writing-practice tracking. Demo-deck items have no wkStage and
+   are excluded here — they are not real WaniKani data.
+   ═══════════════════════════════════════════════════════════════ */
+function wkItemList(){
+  return itemList().filter(it => it.s && it.s.wkStage > 0);
+}
+function renderWK(){
+  const items = wkItemList();
+  $("#wk-empty").hidden = items.length > 0;
+  $("#wk-body").hidden = items.length === 0;
+  if(!items.length) return;
+  renderWkSrs(items);
+  renderWkLevel(items);
+  renderWkCompare(items);
+  renderWkPace();
+}
+function renderWkSrs(items){
+  const tot = {}, kv = {};
+  for(const g of WK_GROUPS){ tot[g[0]] = 0; kv[g[0]] = {k:0, v:0}; }
+  for(const it of items){
+    const g = wkStageGroup(it.s.wkStage);
+    tot[g]++; kv[g][it.vocab ? "v" : "k"]++;
+  }
+  const bar = WK_GROUPS.map(([k,,col])=>{
+    const note = kvNote(kv[k].k, kv[k].v);
+    return '<div style="flex:'+(tot[k]||0.0001)+' 0 0;background:'+col+'"'
+      + ' data-tip="'+esc(WK_GROUP_LABEL[k]+' '+tot[k]+(note ? " ("+note+")" : ""))+'"></div>';
+  }).join("");
+  const legend = WK_GROUPS.map(([k,label,col])=>
+    '<span><i style="background:'+col+'"></i>'+label+' '+tot[k]+'</span>').join("");
+  const total = items.length;
+  const burnedPct = total ? Math.round(tot.burned/total*100) : 0;
+  const tiles = tile(total,"Total items")
+    + tile(tot.apprentice,"Apprentice") + tile(tot.guru,"Guru")
+    + tile(tot.master,"Master") + tile(tot.enlightened,"Enlightened")
+    + tile(tot.burned,"Burned") + tile(burnedPct,"Burned","%");
+  const lastSync = S.meta.lastSync ? " ("+new Date(S.meta.lastSync).toLocaleDateString(undefined,{month:"short",day:"numeric"})+")" : "";
+  $("#wk-srs").innerHTML =
+    '<h2>SRS distribution</h2>'
+    + '<p class="muted">Real WaniKani stage as of the last sync'+lastSync+' — separate from the writing-practice progress tracked elsewhere in this app. See App vs WaniKani for how the two compare.</p>'
+    + '<div class="stagebar">'+bar+'</div>'
+    + '<div class="legend">'+legend+'</div>'
+    + '<div class="tiles" style="margin-top:14px">'+tiles+'</div>';
+}
+/* WaniKani's real Apprentice I-IV durations (this app's own STAGES
+   ladder was built on these exact values — see the Scheduler section —
+   so they're trusted, not re-derived). Confirmed against WK's official
+   docs: level-up requires ceil(0.9 * kanji-at-this-level) at Guru or
+   above (knowledge.wanikani.com/wanikani/getting-started/level-up), and
+   a kanji unlocks once every component radical has reached Guru
+   (docs.api.wanikani.com, assignments.unlocked_at prerequisites). */
+const WK_APPRENTICE_SEC = [14400, 28800, 82800, 169200];
+/* Best-case seconds until an item reaches Guru: every future review
+   answered correctly the instant it's available, any not-yet-done
+   lesson happening right now. Always an optimistic floor, presented as
+   "earliest possible" rather than a real prediction. */
+function wkSecToGuru(stage){
+  if(stage >= 5) return 0;
+  return WK_APPRENTICE_SEC.slice(Math.max(0, stage-1)).reduce((a,b)=>a+b, 0);
+}
+/* Locked kanji additionally wait on whichever component radical is
+   slowest to Guru, then run their own full chain once that clears and
+   the lesson is done. One level deep only — radicals have no
+   components of their own, so this never recurses further. A component
+   from an earlier level not present in gatingById is assumed already
+   cleared (0 wait) — true for normal progression, and the exception
+   (an old radical somehow left behind) is rare enough not to chase here
+   given this is a best-case estimate already. */
+function wkItemBestCaseSec(g, gatingById){
+  if(g.srsStage >= 5) return 0;
+  if(g.type === "radical" || g.unlockedAt) return wkSecToGuru(g.srsStage);
+  const comps = (SUBJ[g.id] && SUBJ[g.id].components) || [];
+  const radicalWait = comps.reduce((max,cid)=>{
+    const rg = gatingById[cid];
+    return Math.max(max, rg ? wkItemBestCaseSec(rg, gatingById) : 0);
+  }, 0);
+  return radicalWait + wkSecToGuru(0);
+}
+function renderWkLevel(items){
+  const curLevel = S.meta.level || 0;
+  const gating = S.meta.levelGating || [];
+  if(!gating.length){
+    $("#wk-level").innerHTML = '<h2>Level progress</h2>'
+      + '<p class="muted">No current-level detail yet — run Sync from WaniKani again to fetch it (needs a sync from after level-progress tracking was added to this app).</p>';
+    return;
+  }
+  const gatingById = Object.fromEntries(gating.map(g=>[g.id, g]));
+  const radicals = gating.filter(g=>g.type==="radical");
+  const kanji = gating.filter(g=>g.type==="kanji");
+  const kanjiGuru = kanji.filter(g=>g.srsStage>=5).length;
+  const required = Math.ceil(kanji.length * 0.9);
+  const stillNeeded = Math.max(0, required - kanjiGuru);
+  const pct = kanji.length ? Math.round(kanjiGuru/kanji.length*100) : 0;
+
+  const progressBar = '<div class="stagebar" style="height:20px">'
+    + '<div style="flex:'+(kanjiGuru||0.0001)+' 0 0;background:var(--s-guru)"'
+    + ' data-tip="'+esc(kanjiGuru+" of "+kanji.length+" kanji at Guru or above")+'"></div>'
+    + '<div style="flex:'+((kanji.length-kanjiGuru)||0.0001)+' 0 0;background:var(--grid-hair)"></div>'
+    + '</div>';
+
+  let etaLine;
+  if(stillNeeded === 0){
+    etaLine = '<p class="muted" style="margin-top:6px">Requirement met — '+kanjiGuru+' of '+required+' needed kanji are at Guru or above. If the level has not advanced yet, sync again to refresh.</p>';
+  } else {
+    const notGuru = kanji.filter(g=>g.srsStage<5)
+      .map(g=>Object.assign({}, g, {eta: wkItemBestCaseSec(g, gatingById)}))
+      .sort((a,b)=>a.eta-b.eta);
+    const etaSec = notGuru[stillNeeded-1] ? notGuru[stillNeeded-1].eta : null;
+    etaLine = '<p class="muted" style="margin-top:6px">'+kanjiGuru+' of '+required+' needed kanji ('+pct+'% of '+kanji.length+' total). '
+      + (etaSec!=null
+          ? stillNeeded+' more kanji needed — earliest possible level-up '+fmtCountdown(etaSec*1000)+' from now, if every remaining review goes well and lessons happen right away.'
+          : stillNeeded+' more kanji needed.')
+      + '</p>';
+  }
+
+  const gatingItems = [...radicals, ...kanji].filter(g=>g.srsStage<5)
+    .sort((a,b)=> (a.type===b.type ? 0 : (a.type==="radical" ? -1 : 1)) || a.srsStage-b.srsStage);
+  const gatingList = gatingItems.length
+    ? '<div class="igrid" style="margin-top:10px">'+gatingItems.map(g=>{
+        const s = SUBJ[g.id] || {};
+        const card = S.cards[g.id];
+        const appG = card ? stageGroup(card.stage) : null;
+        const wkLabel = g.type==="radical" ? "Radical"
+          : (!g.unlockedAt ? "Locked" : g.startedAt ? "Apprentice" : "In lessons");
+        const disp = s.ch || (s.primary ? "["+s.primary+"]" : "?");
+        const tip = (s.primary||"?")+" — WK: "+wkLabel+(card ? ", here: "+stageName(card.stage) : "");
+        return '<span class="tile-item'+(g.type==="radical" ? " vocab" : "")+'"'
+          + (appG ? ' data-g="'+appG+'"' : '')
+          + ' data-tip="'+esc(tip)+'"'
+          + '>'+esc(disp)+'</span>';
+      }).join("")+'</div>'
+    : '<p class="muted">Nothing outstanding — every radical and kanji at this level is at Guru or above.</p>';
+
+  // Earlier levels: this app's own tracked history, since levelGating
+  // only ever covers the current level (fetched fresh each sync).
+  const byLevel = {};
+  for(const it of items){
+    if(it.vocab || it.level===curLevel) continue;
+    (byLevel[it.level] = byLevel[it.level] || []).push(it);
+  }
+  const histRows = Object.keys(byLevel).map(Number).sort((a,b)=>a-b).map(lv=>{
+    const its = byLevel[lv];
+    const g = its.filter(it=>it.s.wkStage>=5).length;
+    return '<div class="levelrow"><span class="lv">lv '+lv+'</span>'
+      + '<div class="lbar"><i style="flex:'+(g||0.0001)+' 0 0;background:var(--s-guru)"></i>'
+      + '<i style="flex:'+((its.length-g)||0.0001)+' 0 0;background:var(--grid-hair)"></i></div>'
+      + '<span class="lnum">'+g+' / '+its.length+'</span></div>';
+  }).join("");
+
+  $("#wk-level").innerHTML =
+    '<h2>Level progress</h2>'
+    + '<p class="muted">Level '+curLevel+' needs '+required+' of its '+kanji.length+' kanji at Guru or above to advance (90%, rounded up). Radicals do not gate the level directly, but a locked radical blocks its kanji from unlocking.</p>'
+    + progressBar
+    + etaLine
+    + '<h2 style="margin-top:28px">Items gating level-up</h2>'
+    + '<p class="muted">Apprentice radicals, plus locked, in-lesson, and Apprentice kanji at this level. Radicals with no character of their own (WaniKani represents some with an image instead) show their meaning in brackets.</p>'
+    + gatingList
+    + (histRows ? '<h2 style="margin-top:28px">Earlier levels</h2><div class="levels">'+histRows+'</div>' : "");
+}
+function renderWkCompare(items){
+  const gaps = items.filter(it => it.s.wkStage >= 5 && it.c.stage > 0 && it.c.stage < GURU)
+    .sort((a,b)=> b.s.wkStage - a.s.wkStage || a.c.stage - b.c.stage);
+  const ahead = items.filter(it => it.c.stage >= GURU && it.s.wkStage < 5);
+  const kanjiOnly = items.filter(it=>!it.vocab);
+  const kanjiOnWK = kanjiOnly.filter(it=>it.s.wkStage>=5).length;
+  const kanjiHere = kanjiOnly.filter(it=>it.c.stage>=GURU).length;
+
+  const rows = gaps.slice(0,40).map(it=>
+    '<tr><td class="ch">'+esc(it.s.ch||"")+'</td><td>'+esc(it.s.primary||"")+'</td>'
+    + '<td class="lv">'+WK_GROUP_LABEL[wkStageGroup(it.s.wkStage)]+'</td>'
+    + '<td class="lv">'+stageName(it.c.stage)+'</td></tr>'
+  ).join("");
+
+  $("#wk-compare").innerHTML =
+    '<h2>App vs WaniKani</h2>'
+    + '<p class="muted">Kanji WaniKani already has at Guru or above that have not reached Guru in your handwriting practice here — recognized, but not yet reliably writable. Character, meaning, WaniKani stage, stage here.</p>'
+    + '<div class="tiles">'
+      + tile(gaps.length,"Recognize, cannot write yet")
+      + tile(kanjiOnWK,"Kanji Guru+ on WK")
+      + tile(kanjiHere,"Kanji Guru+ here")
+      + tile(ahead.length,"Ahead here vs WK")
+    + '</div>'
+    + (gaps.length
+        ? '<div class="table-wrap"><table class="leech">'+rows+'</table></div>'
+          + (gaps.length>40 ? '<p class="muted">+ '+(gaps.length-40)+' more.</p>' : "")
+        : '<p class="muted">Nothing outstanding — everything at Guru or above on WaniKani has also reached Guru here.</p>');
+}
+function renderWkPace(){
+  const hist = (S.meta.levelHistory || []).filter(h=>h.startedAt);
+  if(!hist.length){
+    $("#wk-pace").innerHTML = '<h2>Level pace</h2>'
+      + '<p class="muted">No level history yet — run Sync from WaniKani again to fetch it (this needs a sync from after level-pace tracking was added to this app).</p>';
+    return;
+  }
+  const daysOf = h => (new Date(h.passedAt) - new Date(h.startedAt)) / DAY;
+  const completed = hist.filter(h=>h.passedAt).map(h=>({level:h.level, days:daysOf(h)}));
+  const inProgress = hist.find(h=>!h.passedAt) || null;
+  const avg = completed.length ? completed.reduce((s,p)=>s+p.days,0)/completed.length : null;
+  const fastest = completed.length ? completed.reduce((a,b)=> b.days<a.days?b:a) : null;
+  const slowest = completed.length ? completed.reduce((a,b)=> b.days>a.days?b:a) : null;
+  const soFar = inProgress ? (now() - new Date(inProgress.startedAt).getTime())/DAY : 0;
+
+  let projection = "";
+  if(inProgress && avg){
+    const projDate = new Date(now() + Math.max(0, avg - soFar)*DAY);
+    projection = '<p class="muted">At your average pace, level '+inProgress.level+' finishes around '
+      + projDate.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})
+      + ' — '+Math.round(soFar)+' days in so far, average pace '+avg.toFixed(1)+' days per level.</p>';
+  }
+
+  const maxDays = Math.max(1, ...completed.map(p=>p.days), soFar);
+  const bars = completed.map(p=>
+    '<div class="bar" style="height:'+(p.days/maxDays*100)+'%" data-tip="'+esc("Level "+p.level+" — "+p.days.toFixed(1)+" days")+'"></div>'
+  ).join("") + (inProgress
+      ? '<div class="bar" data-today="1" style="height:'+(soFar/maxDays*100)+'%" data-tip="'+esc("Level "+inProgress.level+" — in progress, "+Math.round(soFar)+" days so far")+'"></div>'
+      : "");
+
+  const tiles = tile(completed.length,"Levels completed")
+    + tile(avg ? avg.toFixed(1) : "—","Average days / level")
+    + tile(fastest ? fastest.days.toFixed(1) : "—","Fastest level", fastest ? "d (lv "+fastest.level+")" : "")
+    + tile(slowest ? slowest.days.toFixed(1) : "—","Slowest level", slowest ? "d (lv "+slowest.level+")" : "");
+
+  $("#wk-pace").innerHTML =
+    '<h2>Level pace</h2>'
+    + '<p class="muted">Days spent per level, from WaniKani level-up history.</p>'
+    + '<div class="tiles">'+tiles+'</div>'
+    + '<div class="chart" style="margin-top:14px">'+bars+'</div>'
+    + projection;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    Chart tooltips
    ═══════════════════════════════════════════════════════════════ */
 function hideChartTip(){ $("#charttip").hidden = true; }
@@ -2748,6 +3051,9 @@ function bindSimpleTips(sel){
 bindSimpleTips("#i-bar");
 bindSimpleTips("#i-levels");
 bindSimpleTips("#heat");
+bindSimpleTips("#wk-srs");
+bindSimpleTips("#wk-level");
+bindSimpleTips("#wk-pace");
 window.addEventListener("scroll", hideChartTip, {passive:true});
 // mouseleave (how these tooltips hide themselves elsewhere) never fires
 // on touch — there's no cursor to leave with. Tapping a bar shows its
@@ -2782,6 +3088,27 @@ function stageGroup(stage){
   if(stage <= 8) return "guru";
   if(stage === 9) return "master";
   if(stage === 10) return "enlightened";
+  return "burned";
+}
+/* WaniKani's own 5-stage ladder (SUBJ[id].wkStage, straight from the
+   assignments endpoint — 1-4 Apprentice, 5-6 Guru, 7 Master, 8
+   Enlightened, 9 Burned), as opposed to stageGroup() above which is
+   this app's own 11-stage writing-practice ladder. Kept as a separate
+   taxonomy, but reusing the app's own stage colors (not WK's brand
+   colors) so the WaniKani tab still looks like the rest of the app. */
+const WK_GROUPS = [
+  ["apprentice",  "Apprentice",  "var(--s-apprentice)",  "var(--paper)"],
+  ["guru",        "Guru",        "var(--s-guru)",        "var(--s-guru-text)"],
+  ["master",      "Master",      "var(--s-master)",      "var(--ink-on-accent)"],
+  ["enlightened", "Enlightened", "var(--s-enlightened)", "var(--paper)"],
+  ["burned",      "Burned",      "var(--s-burned)",      "var(--paper)"]
+];
+const WK_GROUP_LABEL = Object.fromEntries(WK_GROUPS.map(g=>[g[0], g[1]]));
+function wkStageGroup(stage){
+  if(stage <= 4) return "apprentice";
+  if(stage <= 6) return "guru";
+  if(stage === 7) return "master";
+  if(stage === 8) return "enlightened";
   return "burned";
 }
 let itemSel = null;
@@ -3021,7 +3348,7 @@ function refreshLive(full){
   if(full && !$("#v-items").hidden) renderItems();
 }
 function go(name){
-  for(const v of ["review","items","stats","setup"]) $("#v-"+v).hidden = (v!==name);
+  for(const v of ["review","items","stats","wk","setup"]) $("#v-"+v).hidden = (v!==name);
   document.querySelectorAll(".navlinks button").forEach(b=> b.setAttribute("aria-current", String(b.dataset.go===name)));
   if(name==="stats") renderStats();
   if(name==="items") renderItems();
@@ -3031,22 +3358,29 @@ function go(name){
     // under you, so an unanswered one is kept.
     if(current) renderCounts(); else showCard();
   }
-  if(name==="setup"){ renderDataSummary(); goSubtab("sync"); }
+  if(name==="setup"){ renderDataSummary(); goSubtab("setup","sync"); }
+  if(name==="wk"){ renderWK(); goSubtab("wk","srs"); }
   window.scrollTo(0,0);
 }
 document.querySelectorAll("[data-go]").forEach(b=> b.onclick = ()=> go(b.dataset.go));
 
-/* Setup's own sub-navigation — sync/data vs. preferences. go() calls
-   this with "sync" every time Setup is opened, so it always lands there
-   first regardless of what was showing last visit. */
-function goSubtab(name){
-  document.querySelectorAll("#setup-subtabs button").forEach(b=>{
+/* Shared sub-navigation for any view built on the .subtabs/.subtab-page
+   pattern (Setup: sync/data vs. preferences; WaniKani: SRS distribution/
+   level progress/comparison/pace). go() always calls this with that
+   view's first subtab on entry, so it lands there regardless of what
+   was showing last visit. prefix is the "#<prefix>-subtabs" nav and
+   "#<prefix>-<name>" page id convention both views follow. */
+function goSubtab(prefix, name){
+  document.querySelectorAll("#"+prefix+"-subtabs button").forEach(b=>{
     const active = b.dataset.subtab === name;
     b.setAttribute("aria-current", String(active));
-    $("#setup-"+b.dataset.subtab).hidden = !active;
+    $("#"+prefix+"-"+b.dataset.subtab).hidden = !active;
   });
 }
-document.querySelectorAll("#setup-subtabs button").forEach(b=> b.onclick = ()=> goSubtab(b.dataset.subtab));
+for(const prefix of ["setup","wk"]){
+  document.querySelectorAll("#"+prefix+"-subtabs button").forEach(b=>
+    b.onclick = ()=> goSubtab(prefix, b.dataset.subtab));
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Boot
